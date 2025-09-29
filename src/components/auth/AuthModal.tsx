@@ -42,7 +42,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
       if (type === 'checkbox') {
         return { ...prev, [name]: (e.target as HTMLInputElement).checked };
       } else if (name === 'userType') {
-        // Type assertion for userType to be 'student' or 'company'
         return { ...prev, [name]: value as 'student' | 'company' };
       } else {
         return { ...prev, [name]: value };
@@ -117,6 +116,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
       setStep(step + 1);
     }
   };
+  
+  const NextButton = () => (
+    <motion.button
+      type="button"
+      onClick={handleNext}
+      whileHover={{ scale: 1.1 }}
+      className="flex-shrink-0 bg-white/20 text-white w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors hover:bg-white/30"
+    >
+      <ArrowRightIcon className="w-6 h-6" />
+    </motion.button>
+  );
 
   return (
     <AnimatePresence>
@@ -136,80 +146,96 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-8 relative">
-                <button onClick={onClose} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors z-10">
-                    <XMarkIcon className="h-6 w-6" />
-                </button>
+                {/* White gradient background effect */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[150%] h-[150%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0)_60%)] pointer-events-none"></div>
 
-                <h2 className="text-3xl font-bold text-white mb-2">{mode === 'signin' ? 'Welcome Back' : 'Join TrackIntern'}</h2>
-                <p className="text-white/70 mb-8">
-                  {mode === 'signin' ? 'Sign in to continue your journey.' : 'Create an account to get started.'}
-                </p>
-            
-                <form onSubmit={handleFormSubmit} className="relative min-h-[10rem] flex flex-col justify-center">
-                    <AnimatePresence mode="wait">
-                    {step === 0 && (
-                        <motion.div key="email" {...fieldAnimation} className="space-y-2">
-                        <label htmlFor="email" className="font-medium text-white/80">Email Address</label>
-                        <input type="email" name="email" required value={formData.email} onChange={handleInputChange} className="w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Enter your email" />
-                        </motion.div>
-                    )}
-                    {mode === 'signup' && step === 1 && (
-                        <motion.div key="userType" {...fieldAnimation} className="space-y-2">
-                        <label htmlFor="userType" className="font-medium text-white/80">I am a...</label>
-                        <select name="userType" value={formData.userType} onChange={handleInputChange} className="w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50">
-                            <option value="student" style={{backgroundColor: '#581c87'}}>Student</option>
-                            <option value="company" style={{backgroundColor: '#581c87'}}>Company</option>
-                        </select>
-                        </motion.div>
-                    )}
-                    {((mode === 'signup' && step === 2) || (mode === 'signin' && step === 1)) && (
-                        <motion.div key="password" {...fieldAnimation} className="space-y-2">
-                        <label htmlFor="password" className="font-medium text-white/80">Password</label>
-                        <div className="relative">
-                            <input type={showPassword ? 'text' : 'password'} name="password" required value={formData.password} onChange={handleInputChange} className="w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Enter your password" />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50">
-                            {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
-                            </button>
-                        </div>
-                        </motion.div>
-                    )}
-                    {mode === 'signup' && step === 3 && (
-                        <motion.div key="confirmPassword" {...fieldAnimation} className="space-y-2">
-                        <label htmlFor="confirmPassword" className="font-medium text-white/80">Confirm Password</label>
-                        <input type="password" name="confirmPassword" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Confirm your password" />
-                        </motion.div>
-                    )}
-                    {mode === 'signup' && step === 4 && (
-                        <motion.div key="acceptTerms" {...fieldAnimation} className="flex items-center space-x-3">
-                        <input type="checkbox" id="acceptTerms" name="acceptTerms" checked={formData.acceptTerms} onChange={handleInputChange} className="h-5 w-5 text-blue-400 bg-white/10 border-white/20 focus:ring-blue-500 rounded" />
-                        <label htmlFor="acceptTerms" className="text-sm text-white/80">I accept the <a href="#" className="text-white hover:underline">Terms and Conditions</a></label>
-                        </motion.div>
-                    )}
-                    {step === currentSteps.length && (
-                        <motion.div key="submit" {...fieldAnimation}>
-                        <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} className="w-full bg-white/90 text-purple-700 font-bold py-3 rounded-lg hover:shadow-lg disabled:opacity-50">
-                            {loading ? 'Processing...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
-                        </motion.button>
-                        </motion.div>
-                    )}
-                    </AnimatePresence>
-                    
-                    {step < currentSteps.length && (
-                    <motion.button type="button" onClick={handleNext} whileHover={{ scale: 1.1 }} className="absolute -bottom-4 right-0 bg-white/20 text-white w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-sm">
-                        <ArrowRightIcon className="w-6 h-6" />
-                    </motion.button>
-                    )}
-                </form>
-
-                <div className="mt-8">
-                    <div className="w-full bg-white/20 rounded-full h-1.5 mb-4">
-                        <motion.div className="bg-white h-1.5 rounded-full" animate={{ width: `${progress}%` }} />
-                    </div>
-                    <div className="text-center text-sm text-white/70">
-                    {mode === 'signin' ? "Don't have an account? " : "Already have an account? "}
-                    <button type="button" onClick={() => onSwitchMode(mode === 'signin' ? 'signup' : 'signin')} className="text-white hover:underline font-bold">
-                        {mode === 'signin' ? 'Sign Up' : 'Sign In'}
+                <div className="relative z-10">
+                    <button onClick={onClose} className="absolute -top-2 -right-2 text-white/70 hover:text-white transition-colors z-20">
+                        <XMarkIcon className="h-6 w-6" />
                     </button>
+
+                    <h2 className="text-3xl font-bold text-white mb-2">{mode === 'signin' ? 'Welcome Back' : 'Join TrackIntern'}</h2>
+                    <p className="text-white/70 mb-8">
+                      {mode === 'signin' ? 'Sign in to continue your journey.' : 'Create an account to get started.'}
+                    </p>
+                
+                    <form onSubmit={handleFormSubmit} className="min-h-[6rem] flex flex-col justify-center">
+                        <AnimatePresence mode="wait">
+                        {step === 0 && (
+                            <motion.div key="email" {...fieldAnimation}>
+                                <label htmlFor="email" className="font-medium text-white/80">Email Address</label>
+                                <div className="flex items-center gap-3 mt-2">
+                                    <input type="email" name="email" required value={formData.email} onChange={handleInputChange} className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Enter your email" />
+                                    <NextButton />
+                                </div>
+                            </motion.div>
+                        )}
+                        {mode === 'signup' && step === 1 && (
+                            <motion.div key="userType" {...fieldAnimation}>
+                                <label htmlFor="userType" className="font-medium text-white/80">I am a...</label>
+                                <div className="flex items-center gap-3 mt-2">
+                                    <select name="userType" value={formData.userType} onChange={handleInputChange} className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50">
+                                        <option value="student" style={{backgroundColor: '#581c87'}}>Student</option>
+                                        <option value="company" style={{backgroundColor: '#581c87'}}>Company</option>
+                                    </select>
+                                    <NextButton />
+                                </div>
+                            </motion.div>
+                        )}
+                        {((mode === 'signup' && step === 2) || (mode === 'signin' && step === 1)) && (
+                            <motion.div key="password" {...fieldAnimation}>
+                                <label htmlFor="password" className="font-medium text-white/80">Password</label>
+                                <div className="flex items-center gap-3 mt-2">
+                                    <div className="relative flex-grow">
+                                        <input type={showPassword ? 'text' : 'password'} name="password" required value={formData.password} onChange={handleInputChange} className="w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Enter your password" />
+                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50">
+                                        {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                                        </button>
+                                    </div>
+                                    <NextButton />
+                                </div>
+                            </motion.div>
+                        )}
+                        {mode === 'signup' && step === 3 && (
+                            <motion.div key="confirmPassword" {...fieldAnimation}>
+                                <label htmlFor="confirmPassword" className="font-medium text-white/80">Confirm Password</label>
+                                <div className="flex items-center gap-3 mt-2">
+                                    <input type="password" name="confirmPassword" required value={formData.confirmPassword} onChange={handleInputChange} className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Confirm your password" />
+                                    <NextButton />
+                                </div>
+                            </motion.div>
+                        )}
+                        {mode === 'signup' && step === 4 && (
+                            <motion.div key="acceptTerms" {...fieldAnimation}>
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center space-x-3">
+                                        <input type="checkbox" id="acceptTerms" name="acceptTerms" checked={formData.acceptTerms} onChange={handleInputChange} className="h-5 w-5 text-blue-400 bg-white/10 border-white/20 focus:ring-blue-500 rounded" />
+                                        <label htmlFor="acceptTerms" className="text-sm text-white/80">I accept the <a href="#" className="text-white hover:underline">Terms and Conditions</a></label>
+                                    </div>
+                                    <NextButton />
+                                </div>
+                            </motion.div>
+                        )}
+                        {step === currentSteps.length && (
+                            <motion.div key="submit" {...fieldAnimation} className="mt-2">
+                                <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} className="w-full bg-white/90 text-purple-700 font-bold py-3 rounded-lg hover:shadow-lg disabled:opacity-50">
+                                    {loading ? 'Processing...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
+                                </motion.button>
+                            </motion.div>
+                        )}
+                        </AnimatePresence>
+                    </form>
+
+                    <div className="mt-8">
+                        <div className="w-full bg-white/20 rounded-full h-1.5 mb-4">
+                            <motion.div className="bg-white h-1.5 rounded-full" animate={{ width: `${progress}%` }} />
+                        </div>
+                        <div className="text-center text-sm text-white/70">
+                        {mode === 'signin' ? "Don't have an account? " : "Already have an account? "}
+                        <button type="button" onClick={() => onSwitchMode(mode === 'signin' ? 'signup' : 'signin')} className="text-white hover:underline font-bold">
+                            {mode === 'signin' ? 'Sign Up' : 'Sign In'}
+                        </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -219,4 +245,3 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
     </AnimatePresence>
   );
 };
-

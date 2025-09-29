@@ -10,3 +10,19 @@
     transform: translateY(-100vh) translateX(100px) rotate(360deg);
   }
 }
+
+/* --- Added code below --- */
+/* This overrides the default white background on browser autofill */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  /* Use a transition delay to stop the browser from applying its styles */
+  transition: background-color 5000s ease-in-out 0s;
+  
+  /* Force the text color to be white, which works with our dark theme */
+  -webkit-text-fill-color: #fff !important;
+  
+  /* Apply an inset box-shadow to act as a fake background, matching our input style */
+  -webkit-box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.1) inset !important;
+}
