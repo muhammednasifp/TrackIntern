@@ -2,22 +2,20 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bars3Icon, XMarkIcon, UserCircleIcon, BellIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
-import { AuthModal } from '../auth/AuthModal';
+
+// The props for click handlers are no longer needed
+// interface NavbarProps {
+//   onSignInClick: () => void;
+//   onGetStartedClick: () => void;
+// }
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const { user, signOut } = useAuthStore();
-
-  const openAuth = (mode: 'signin' | 'signup') => {
-    setAuthMode(mode);
-    setShowAuthModal(true);
-  };
 
   return (
     <>
-      <motion.nav 
+      <motion.nav
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="fixed top-0 w-full z-50 bg-white/10 backdrop-blur-lg border-b border-white/20"
@@ -25,7 +23,7 @@ export const Navbar: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
-            <motion.div 
+            <motion.div
               whileHover={{ scale: 1.05 }}
               className="flex items-center space-x-2"
             >
@@ -39,31 +37,9 @@ export const Navbar: React.FC = () => {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
-              <motion.a 
-                href="#features" 
-                whileHover={{ scale: 1.05 }}
-                className="text-gray-700 hover:text-purple-600 transition-colors"
-              >
-                Features
-              </motion.a>
-              <motion.a 
-                href="#how-it-works" 
-                whileHover={{ scale: 1.05 }}
-                className="text-gray-700 hover:text-purple-600 transition-colors"
-              >
-                How it Works
-              </motion.a>
-              <motion.a 
-                href="#pricing" 
-                whileHover={{ scale: 1.05 }}
-                className="text-gray-700 hover:text-purple-600 transition-colors"
-              >
-                Pricing
-              </motion.a>
-              
               {user ? (
                 <div className="flex items-center space-x-4">
-                  <motion.button
+                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     className="relative p-2 text-gray-700 hover:text-purple-600 transition-colors"
@@ -107,43 +83,29 @@ export const Navbar: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center space-x-4">
-                  <motion.button
-                    onClick={() => openAuth('signin')}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="text-gray-700 hover:text-purple-600 transition-colors"
-                  >
-                    Sign In
-                  </motion.button>
-                  <motion.button
-                    onClick={() => openAuth('signup')}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-2 rounded-full font-medium hover:shadow-lg transition-all"
-                  >
-                    Get Started
-                  </motion.button>
-                </div>
+                // When logged out, show nothing here
+                null
               )}
             </div>
 
-            {/* Mobile menu button */}
-            <div className="md:hidden">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setIsOpen(!isOpen)}
-                className="text-gray-700 hover:text-purple-600 transition-colors"
-              >
-                {isOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
-              </motion.button>
-            </div>
+            {/* Mobile menu button - only show if user is logged in */}
+            {user && (
+              <div className="md:hidden">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsOpen(!isOpen)}
+                  className="text-gray-700 hover:text-purple-600 transition-colors"
+                >
+                  {isOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
+                </motion.button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Mobile menu */}
         <AnimatePresence>
-          {isOpen && (
+          {isOpen && user && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -151,59 +113,16 @@ export const Navbar: React.FC = () => {
               className="md:hidden bg-white/90 backdrop-blur-lg border-t border-white/20"
             >
               <div className="px-4 py-4 space-y-4">
-                <a href="#features" className="block text-gray-700 hover:text-purple-600 transition-colors">
-                  Features
-                </a>
-                <a href="#how-it-works" className="block text-gray-700 hover:text-purple-600 transition-colors">
-                  How it Works
-                </a>
-                <a href="#pricing" className="block text-gray-700 hover:text-purple-600 transition-colors">
-                  Pricing
-                </a>
-                
-                {user ? (
-                  <div className="space-y-2 pt-4 border-t border-gray-200">
-                    <a href="/dashboard" className="block text-gray-700 hover:text-purple-600 transition-colors">
-                      Dashboard
-                    </a>
-                    <a href="/profile" className="block text-gray-700 hover:text-purple-600 transition-colors">
-                      Profile
-                    </a>
-                    <button 
-                      onClick={signOut}
-                      className="block w-full text-left text-red-600 hover:text-red-700 transition-colors"
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col space-y-2 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => openAuth('signin')}
-                      className="text-gray-700 hover:text-purple-600 transition-colors text-left"
-                    >
-                      Sign In
-                    </button>
-                    <button
-                      onClick={() => openAuth('signup')}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-2 rounded-full font-medium text-center"
-                    >
-                      Get Started
-                    </button>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <a href="/dashboard" className="block text-gray-700 hover:text-purple-600 transition-colors">Dashboard</a>
+                  <a href="/profile" className="block text-gray-700 hover:text-purple-600 transition-colors">Profile</a>
+                  <button onClick={signOut} className="block w-full text-left text-red-600 hover:text-red-700 transition-colors">Sign Out</button>
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.nav>
-
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)} 
-        mode={authMode} 
-        onSwitchMode={setAuthMode}
-      />
     </>
   );
 };
