@@ -206,7 +206,7 @@ export const HeroSection: React.FC = () => {
       </div>
 
       {/* Styles */}
-      <style jsx>{`
+      <style>{`
         @keyframes float {
           0% {
             transform: translateY(100vh) translateX(0px) rotate(0deg);

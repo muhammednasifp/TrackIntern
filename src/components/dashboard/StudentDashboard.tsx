@@ -1,43 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  ChartBarIcon, 
-  BriefcaseIcon, 
-  ClockIcon, 
+import {
+  ClockIcon,
   TrophyIcon,
-  CalendarIcon,
-  BellIcon,
   UserIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 
-interface DashboardWidget {
-  id: string;
-  title: string;
-  icon: React.ComponentType<any>;
-  color: string;
-  size: 'small' | 'medium' | 'large';
-}
-
-const widgets: DashboardWidget[] = [
-  { id: 'profile', title: 'Profile Strength', icon: UserIcon, color: 'from-purple-500 to-indigo-600', size: 'medium' },
-  { id: 'applications', title: 'Applications', icon: BriefcaseIcon, color: 'from-blue-500 to-cyan-600', size: 'large' },
-  { id: 'deadlines', title: 'Upcoming Deadlines', icon: ClockIcon, color: 'from-orange-500 to-red-600', size: 'medium' },
-  { id: 'achievements', title: 'Achievements', icon: TrophyIcon, color: 'from-emerald-500 to-teal-600', size: 'small' },
-  { id: 'interviews', title: 'Interviews', icon: CalendarIcon, color: 'from-pink-500 to-rose-600', size: 'small' },
-  { id: 'notifications', title: 'Notifications', icon: BellIcon, color: 'from-violet-500 to-purple-600', size: 'small' },
-];
-
 export const StudentDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
-
-  const getGridClass = (size: string) => {
-    switch (size) {
-      case 'large': return 'md:col-span-2 md:row-span-2';
-      case 'medium': return 'md:col-span-2';
-      default: return '';
-    }
-  };
 
   const applications = [
     { id: 1, company: 'Google', position: 'Software Engineer Intern', status: 'under_review', appliedDate: '2025-01-10' },
