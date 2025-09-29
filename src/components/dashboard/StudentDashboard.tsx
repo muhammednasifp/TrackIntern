@@ -1,21 +1,126 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ClockIcon,
-  TrophyIcon,
   UserIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import { useAuthStore } from '../../stores/authStore';
+import { supabase } from '../../lib/supabase';
 
-export const StudentDashboard: React.FC = () => {
+interface ApplicationFromSupabase {
+  application_id: string;
+  status: string;
+  applied_date: string;
+  opportunities: {
+    title: string;
+    companies: {
+      company_name: string;
+    } | null;
+  } | null;
+}
+
+interface Application {
+  id: string;
+  company: string;
+  position: string;
+  status: string;
+  appliedDate: string;
+}
+
+interface StudentProfile {
+  student_id: string;
+  full_name: string;
+  profile_strength: number;
+  resume_url: string | null;
+  skills: string[];
+  achievements_count: number;
+}
+
+interface StudentDashboardProps {
+  navigateTo: (path: string) => void;
+}
+
+export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }) => {
+  const { user } = useAuthStore();
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const applications = [
-    { id: 1, company: 'Google', position: 'Software Engineer Intern', status: 'under_review', appliedDate: '2025-01-10' },
-    { id: 2, company: 'Microsoft', position: 'Product Manager Intern', status: 'interview_scheduled', appliedDate: '2025-01-08' },
-    { id: 3, company: 'Amazon', position: 'Data Science Intern', status: 'shortlisted', appliedDate: '2025-01-05' },
-    { id: 4, company: 'Meta', position: 'Frontend Developer', status: 'selected', appliedDate: '2025-01-03' },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const { data: studentData, error: studentError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (studentError && studentError.code === 'PGRST116') {
+            console.log("No student profile found for this user.");
+            setProfile(null);
+            setApplications([]);
+            setLoading(false);
+            return;
+        }
+
+        if (studentError) throw new Error(`Error fetching profile: ${studentError.message}`);
+        setProfile(studentData);
+
+        if (studentData) {
+          const { data: appData, error: appError } = await supabase
+            .from('applications')
+            .select(`
+              application_id,
+              status,
+              applied_date,
+              opportunities (
+                title,
+                companies (
+                  company_name
+                )
+              )
+            `)
+            .eq('student_id', studentData.student_id)
+            .order('applied_date', { ascending: false })
+            .limit(4);
+
+          if (appError) throw new Error(`Error fetching applications: ${appError.message}`);
+
+          const formattedApps = appData.map((app: ApplicationFromSupabase) => ({
+            id: app.application_id,
+            company: app.opportunities?.companies?.company_name || 'Unknown Company',
+            position: app.opportunities?.title || 'Unknown Position',
+            status: app.status,
+            appliedDate: app.applied_date,
+          }));
+          setApplications(formattedApps);
+        }
+      } catch (err: unknown) {
+        console.error(err);
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("An unexpected error occurred while fetching your data.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -29,28 +134,48 @@ export const StudentDashboard: React.FC = () => {
   };
 
   const getStatusText = (status: string) => {
-    switch (status) {
-      case 'selected': return 'Selected';
-      case 'interview_scheduled': return 'Interview Scheduled';
-      case 'shortlisted': return 'Shortlisted';
-      case 'under_review': return 'Under Review';
-      case 'rejected': return 'Rejected';
-      default: return status;
-    }
+      return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 pt-16">
+        <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+      return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50 pt-16 px-4">
+              <div className="text-center p-8 bg-white rounded-lg shadow-md border border-red-200">
+                <ExclamationTriangleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Could not load dashboard</h2>
+                <p className="text-gray-600">{error}</p>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="mt-6 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                    Try Again
+                </button>
+              </div>
+          </div>
+      )
+  }
+
+  const interviewCount = 0;
+  const offerCount = 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-sm text-gray-600">Welcome back, John!</p>
+              <p className="text-sm text-gray-600">Welcome back, {profile?.full_name || 'Student'}!</p>
             </div>
-            
-            {/* Search */}
+
             <div className="relative">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
@@ -65,15 +190,33 @@ export const StudentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Dashboard Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Quick Stats */}
+
+        {!profile && (
+             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-sm mb-8">
+                <div className="flex">
+                    <div className="flex-shrink-0">
+                        <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                    </div>
+                    <div className="ml-3">
+                        <p className="text-sm text-yellow-700">
+                        Your profile is not complete.
+                        <button onClick={() => navigateTo('/profile')} className="font-medium underline text-yellow-800 hover:text-yellow-900 ml-2 bg-transparent border-none cursor-pointer">
+                            Create your student profile
+                        </button>
+                        {' '}to start applying for opportunities.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {[
-            { label: 'Profile Strength', value: '85%', change: '+5%', color: 'text-purple-600' },
-            { label: 'Applications', value: '12', change: '+3', color: 'text-blue-600' },
-            { label: 'Interviews', value: '4', change: '+1', color: 'text-emerald-600' },
-            { label: 'Offers', value: '2', change: '+2', color: 'text-pink-600' },
+            { label: 'Profile Strength', value: `${profile?.profile_strength || 0}%`, color: 'text-purple-600' },
+            { label: 'Applications', value: applications.length, color: 'text-blue-600' },
+            { label: 'Interviews', value: interviewCount, color: 'text-emerald-600' },
+            { label: 'Offers', value: offerCount, color: 'text-pink-600' },
           ].map((stat, index) => (
             <motion.div
               key={index}
@@ -87,21 +230,16 @@ export const StudentDashboard: React.FC = () => {
                   <p className="text-sm text-gray-600">{stat.label}</p>
                   <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
                 </div>
-                <div className={`text-sm font-medium ${stat.color}`}>
-                  {stat.change}
-                </div>
               </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Applications Widget (Large) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="md:col-span-2 md:row-span-2 bg-white rounded-xl shadow-sm border p-6"
+            className="lg:col-span-2 bg-white rounded-xl shadow-sm border p-6"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Recent Applications</h3>
@@ -115,33 +253,39 @@ export const StudentDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {applications.map((app, index) => (
-                <motion.div
-                  key={app.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center text-white font-bold">
-                      {app.company.charAt(0)}
+              {applications.length > 0 ? (
+                applications.map((app, index) => (
+                  <motion.div
+                    key={app.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center text-white font-bold">
+                        {app.company.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{app.position}</h4>
+                        <p className="text-sm text-gray-600">{app.company}</p>
+                        <p className="text-xs text-gray-500">Applied on {new Date(app.appliedDate).toLocaleDateString()}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{app.position}</h4>
-                      <p className="text-sm text-gray-600">{app.company}</p>
-                      <p className="text-xs text-gray-500">Applied on {new Date(app.appliedDate).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(app.status)}`}>
-                    {getStatusText(app.status)}
-                  </span>
-                </motion.div>
-              ))}
+                    <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(app.status)}`}>
+                      {getStatusText(app.status)}
+                    </span>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="text-center py-10 text-gray-500">
+                  <p>You haven't applied to any opportunities yet.</p>
+                  <button className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg">Browse Opportunities</button>
+                </div>
+              )}
             </div>
           </motion.div>
 
-          {/* Profile Strength Widget */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -150,9 +294,11 @@ export const StudentDashboard: React.FC = () => {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Profile Strength</h3>
-              <UserIcon className="h-6 w-6 text-purple-600" />
+              <button onClick={() => navigateTo('/profile')} className="p-1 rounded-full hover:bg-gray-200 transition-colors">
+                <UserIcon className="h-6 w-6 text-purple-600" />
+              </button>
             </div>
-            
+
             <div className="relative pt-1">
               <div className="flex mb-2 items-center justify-between">
                 <div>
@@ -162,15 +308,15 @@ export const StudentDashboard: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <span className="text-xs font-semibold inline-block text-purple-600">
-                    85%
+                    {profile?.profile_strength || 0}%
                   </span>
                 </div>
               </div>
               <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-purple-200">
-                <motion.div 
+                <motion.div
                   className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-purple-500 to-blue-500"
                   initial={{ width: 0 }}
-                  animate={{ width: "85%" }}
+                  animate={{ width: `${profile?.profile_strength || 0}%` }}
                   transition={{ duration: 1, delay: 0.5 }}
                 />
               </div>
@@ -179,20 +325,19 @@ export const StudentDashboard: React.FC = () => {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Resume uploaded</span>
-                <span className="text-green-600">✓</span>
+                <span className={profile?.resume_url ? 'text-green-600' : 'text-gray-400'}>{profile?.resume_url ? '✓' : '–'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Skills added</span>
-                <span className="text-green-600">✓</span>
+                <span className={profile && profile.skills.length > 0 ? 'text-green-600' : 'text-gray-400'}>{profile && profile.skills.length > 0 ? '✓' : '–'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Projects added</span>
-                <span className="text-yellow-600">⚠</span>
+                <span className="text-gray-600">Achievements added</span>
+                <span className={profile && profile.achievements_count > 0 ? 'text-green-600' : 'text-yellow-600'}>{profile && profile.achievements_count > 0 ? '✓' : '⚠'}</span>
               </div>
             </div>
           </motion.div>
 
-          {/* Upcoming Deadlines */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -203,78 +348,46 @@ export const StudentDashboard: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900">Deadlines</h3>
               <ClockIcon className="h-6 w-6 text-orange-600" />
             </div>
-            
-            <div className="space-y-3">
-              {[
-                { company: 'Tesla', deadline: '2025-01-15', days: 2 },
-                { company: 'Netflix', deadline: '2025-01-18', days: 5 },
-                { company: 'Spotify', deadline: '2025-01-22', days: 9 },
-              ].map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">{item.company}</p>
-                    <p className="text-sm text-gray-600">{new Date(item.deadline).toLocaleDateString()}</p>
-                  </div>
-                  <span className="text-sm font-medium text-orange-600">
-                    {item.days} days
-                  </span>
-                </div>
-              ))}
+            <div className="text-center py-10 text-gray-500">
+              <p>No upcoming deadlines.</p>
             </div>
           </motion.div>
 
-          {/* Achievements */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-xl shadow-sm border p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Achievements</h3>
-              <TrophyIcon className="h-6 w-6 text-yellow-600" />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { icon: '🏆', label: 'Top Applicant', count: 3 },
-                { icon: '📚', label: 'Certifications', count: 8 },
-                { icon: '🚀', label: 'Projects', count: 12 },
-                { icon: '⭐', label: 'Reviews', count: 5 },
-              ].map((achievement, index) => (
-                <div key={index} className="text-center p-3 bg-gray-50 rounded-lg">
-                  <div className="text-2xl mb-2">{achievement.icon}</div>
-                  <div className="text-lg font-bold text-gray-900">{achievement.count}</div>
-                  <div className="text-xs text-gray-600">{achievement.label}</div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Quick Actions */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="bg-white rounded-xl shadow-sm border p-6"
+            className="lg:col-span-3 bg-white rounded-xl shadow-sm border p-6"
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Browse Opportunities', color: 'bg-purple-600', icon: '🔍' },
-                { label: 'Update Profile', color: 'bg-blue-600', icon: '👤' },
-                { label: 'Practice Interview', color: 'bg-emerald-600', icon: '🎤' },
-              ].map((action, index) => (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
                 <motion.button
-                  key={index}
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
-                  className={`w-full p-3 ${action.color} text-white rounded-lg font-medium flex items-center space-x-2`}
+                  className={`w-full p-3 bg-purple-600 text-white rounded-lg font-medium flex items-center justify-center space-x-2`}
                 >
-                  <span>{action.icon}</span>
-                  <span>{action.label}</span>
+                  <span>🔍</span>
+                  <span>Browse Opportunities</span>
                 </motion.button>
-              ))}
+                <motion.button
+                  onClick={() => navigateTo('/profile')}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`w-full p-3 bg-blue-600 text-white rounded-lg font-medium flex items-center justify-center space-x-2`}
+                >
+                  <span>👤</span>
+                  <span>Update Profile</span>
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`w-full p-3 bg-emerald-600 text-white rounded-lg font-medium flex items-center justify-center space-x-2`}
+                >
+                  <span>🎤</span>
+                  <span>Practice Interview</span>
+                </motion.button>
+
             </div>
           </motion.div>
         </div>

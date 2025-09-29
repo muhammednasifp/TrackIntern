@@ -45,7 +45,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signUp: async (email: string, password: string, userType: 'student' | 'company') => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -57,6 +57,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       if (error) {
         return { success: false, error: error.message };
+      }
+
+      // --- Added code below ---
+      // After successful sign up, update the user state to log them in automatically
+      if (data.user) {
+        set({ user: data.user as User });
       }
 
       return { success: true };
