@@ -30,6 +30,7 @@ interface Skill {
 }
 
 interface Achievement {
+  achievement_id: string;
   title: string;
   type: string;
   issuing_organization: string;
@@ -43,12 +44,34 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [studentId, setStudentId] = useState<string | null>(null);
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [allSkills, setAllSkills] = useState<Skill[]>([]);
+  const [studentSkills, setStudentSkills] = useState<string[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [newAchievement, setNewAchievement] = useState<Partial<Achievement>>({});
+  const [newAchievement, setNewAchievement] = useState({
+      title: '',
+      type: 'project',
+      issuing_organization: '',
+      description: '',
+      date_achieved: '',
+  });
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string>('');
+
+    const calculateProfileStrength = useCallback(
+    (profile: any, skills: string[], achievements: Achievement[], resumeUrl: string): number => {
+      let strength = 0;
+      if (profile.full_name) strength += 10;
+      if (profile.college_name) strength += 10;
+      if (profile.course) strength += 10;
+      if (profile.cgpa) strength += 10;
+      if (profile.linkedin_url || profile.github_url || profile.portfolio_url) strength += 10;
+      if (skills.length > 0) strength += 20;
+      if (achievements.length > 0) strength += 20;
+      if (resumeUrl) strength += 10;
+      return Math.min(100, strength);
+    },
+    []
+  );
 
   // Fetch existing profile data
   const fetchProfile = useCallback(async () => {
@@ -79,7 +102,25 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
             bio: data.bio || '',
         });
         setStudentId(data.student_id);
+        setStudentSkills(data.skills || []);
+        setResumeUrl(data.resume_url || '');
+
+        const { data: achievementsData, error: achievementsError } = await supabase
+            .from('student_achievements')
+            .select('*')
+            .eq('student_id', data.student_id);
+
+        if (achievementsError) throw achievementsError;
+        setAchievements(achievementsData || []);
       }
+        
+      const { data: skillsData, error: skillsError } = await supabase
+        .from('skills_master')
+        .select('*');
+
+      if (skillsError) throw skillsError;
+      setAllSkills(skillsData || []);
+        
     } catch (error: unknown) {
       const err = error as Error;
       toast.error('Failed to load profile: ' + err.message);
@@ -91,10 +132,100 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+    
+  useEffect(() => {
+    if (!loading) {
+      const strength = calculateProfileStrength(formData, studentSkills, achievements, resumeUrl);
+      if (studentId) {
+        supabase
+          .from('students')
+          .update({ profile_strength: strength })
+          .eq('student_id', studentId)
+          .then();
+      }
+    }
+  }, [formData, studentSkills, achievements, resumeUrl, studentId, loading, calculateProfileStrength]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+    
+  const handleSkillChange = (skillName: string) => {
+    setStudentSkills(prev => 
+        prev.includes(skillName) 
+            ? prev.filter(s => s !== skillName)
+            : [...prev, skillName]
+    );
+  };
+    
+  const handleAddAchievement = async () => {
+      if (!newAchievement.title || !newAchievement.date_achieved) {
+          toast.error("Please fill in at least the title and date for the achievement.");
+          return;
+      }
+      if (!studentId) {
+          toast.error("Please save your main profile details first.");
+          return;
+      }
+      
+      const { data, error } = await supabase
+        .from('student_achievements')
+        .insert({ ...newAchievement, student_id: studentId })
+        .select()
+        .single();
+      
+      if (error) {
+          toast.error("Failed to add achievement: " + error.message);
+      } else if (data) {
+          toast.success("Achievement added!");
+          setAchievements(prev => [...prev, data]);
+          setNewAchievement({title: '', type: 'project', issuing_organization: '', description: '', date_achieved: ''});
+      }
+  };
+    
+  const handleDeleteAchievement = async (achievementId: string) => {
+      const { error } = await supabase
+        .from('student_achievements')
+        .delete()
+        .eq('achievement_id', achievementId);
+      
+      if (error) {
+          toast.error("Failed to delete achievement: " + error.message);
+      } else {
+          toast.success("Achievement removed.");
+          setAchievements(prev => prev.filter(a => a.achievement_id !== achievementId));
+      }
+  };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast.error("File is too large. Maximum size is 2MB.");
+        return;
+    }
+    setResumeFile(file);
+
+    if (!user || !studentId) {
+      toast.error("Please save your profile before uploading a resume.");
+      return;
+    }
+    const toastId = toast.loading("Uploading resume...");
+    const filePath = `${user.id}/${studentId}-resume.pdf`;
+    
+    const { error } = await supabase.storage
+      .from('resumes')
+      .upload(filePath, file, { upsert: true });
+
+    if (error) {
+      toast.error("Failed to upload resume: " + error.message, { id: toastId });
+    } else {
+      const { data: { publicUrl } } = supabase.storage.from('resumes').getPublicUrl(filePath);
+      await supabase.from('students').update({ resume_url: publicUrl }).eq('student_id', studentId);
+      setResumeUrl(publicUrl);
+      toast.success("Resume uploaded successfully!", { id: toastId });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,17 +242,22 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
         const profileData = {
             ...formData,
             user_id: user.id,
+            skills: studentSkills,
             ...(studentId && { student_id: studentId }), // Include student_id only if it exists
             year_of_study: Number(formData.year_of_study),
             cgpa: Number(formData.cgpa),
             updated_at: new Date().toISOString(), // Manually update timestamp
         };
 
-      const { error } = await supabase.from('students').upsert(profileData, {
+      const { data, error } = await supabase.from('students').upsert(profileData, {
         onConflict: 'user_id'
-      });
+      }).select().single();
 
       if (error) throw error;
+      
+      if (data) {
+        setStudentId(data.student_id);
+      }
 
       toast.success('Profile saved successfully!', { id: toastId });
       navigateTo('/dashboard');
@@ -131,6 +267,11 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
     } finally {
       setSaving(false);
     }
+  };
+    
+  const handleNewAchievementChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setNewAchievement(prev => ({...prev, [name]: value}));
   };
 
   if (loading) {
@@ -173,9 +314,27 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
                     <label htmlFor="full_name" className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
                     <input type="text" name="full_name" id="full_name" value={formData.full_name || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" />
                 </div>
-                <div>
+                <div className="md:col-span-2">
                     <label htmlFor="bio" className="block text-sm font-medium text-gray-300 mb-2">Bio / Tagline</label>
-                    <textarea name="bio" id="bio" value={formData.bio || ''} onChange={handleInputChange} rows={1} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" placeholder="E.g., Aspiring Full-Stack Developer"></textarea>
+                    <textarea name="bio" id="bio" value={formData.bio || ''} onChange={handleInputChange} rows={2} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" placeholder="E.g., Aspiring Full-Stack Developer"></textarea>
+                </div>
+            </div>
+            
+            {/* Resume Section */}
+            <div className="pt-6 border-t border-glass-border">
+                <div className="flex items-center gap-4 mb-4">
+                     <DocumentIcon className="w-10 h-10 text-nebula-purple" />
+                     <div>
+                        <h2 className="text-2xl font-semibold text-stellar-white">Resume</h2>
+                        <p className="text-gray-400">Upload your latest resume (PDF, max 2MB).</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4">
+                    <input type="file" id="resume" onChange={handleResumeUpload} className="hidden" accept=".pdf" />
+                    <label htmlFor="resume" className="cursor-pointer px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30">
+                        {resumeFile ? resumeFile.name : "Choose File"}
+                    </label>
+                    {resumeUrl && <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="text-nebula-purple hover:underline">View Current Resume</a>}
                 </div>
             </div>
 
@@ -209,6 +368,70 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
                      <div>
                         <label htmlFor="cgpa" className="block text-sm font-medium text-gray-300 mb-2">CGPA</label>
                         <input type="number" step="0.01" max="10" name="cgpa" id="cgpa" value={formData.cgpa || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" />
+                    </div>
+                </div>
+            </div>
+            
+             {/* Skills Section */}
+            <div className="pt-6 border-t border-glass-border">
+                <h2 className="text-2xl font-semibold text-stellar-white mb-4">Skills</h2>
+                <div className="flex flex-wrap gap-2">
+                    {allSkills.map(skill => (
+                        <button
+                            type="button"
+                            key={skill.skill_id}
+                            onClick={() => handleSkillChange(skill.skill_name)}
+                            className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                                studentSkills.includes(skill.skill_name)
+                                ? 'bg-nebula-purple text-white'
+                                : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                            }`}
+                        >
+                            {skill.skill_name}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Achievements Section */}
+            <div className="pt-6 border-t border-glass-border">
+                <div className="flex items-center gap-4 mb-4">
+                     <TrophyIcon className="w-10 h-10 text-nebula-purple" />
+                     <div>
+                        <h2 className="text-2xl font-semibold text-stellar-white">Achievements</h2>
+                        <p className="text-gray-400">Showcase your projects, certifications, and awards.</p>
+                    </div>
+                </div>
+                {/* Existing Achievements */}
+                <div className="space-y-4 mb-6">
+                    {achievements.map(ach => (
+                        <div key={ach.achievement_id} className="flex justify-between items-start p-3 bg-white/5 rounded-lg">
+                            <div>
+                                <h4 className="font-semibold text-white">{ach.title} ({ach.type})</h4>
+                                <p className="text-sm text-gray-400">{ach.issuing_organization} - {new Date(ach.date_achieved).getFullYear()}</p>
+                                <p className="text-sm text-gray-300 mt-1">{ach.description}</p>
+                            </div>
+                            <button onClick={() => handleDeleteAchievement(ach.achievement_id)}>
+                                <XMarkIcon className="w-5 h-5 text-red-400 hover:text-red-300" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+                 {/* Add New Achievement Form */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-glass-border rounded-lg">
+                    <input type="text" name="title" placeholder="Title" value={newAchievement.title} onChange={handleNewAchievementChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white" />
+                    <select name="type" value={newAchievement.type} onChange={handleNewAchievementChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white">
+                        <option value="project">Project</option>
+                        <option value="certification">Certification</option>
+                        <option value="hackathon">Hackathon</option>
+                    </select>
+                    <input type="text" name="issuing_organization" placeholder="Issuing Organization" value={newAchievement.issuing_organization} onChange={handleNewAchievementChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white" />
+                    <input type="date" name="date_achieved" value={newAchievement.date_achieved} onChange={handleNewAchievementChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white" />
+                    <textarea name="description" placeholder="Description" value={newAchievement.description} onChange={handleNewAchievementChange} className="md:col-span-2 w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white"></textarea>
+                    <div className="md:col-span-2 flex justify-end">
+                        <button type="button" onClick={handleAddAchievement} className="flex items-center gap-2 px-4 py-2 bg-nebula-purple text-white rounded-lg">
+                            <PlusIcon className="w-5 h-5" /> Add Achievement
+                        </button>
                     </div>
                 </div>
             </div>

@@ -8,6 +8,7 @@ import { useAuthStore } from './stores/authStore';
 import { AuthModal } from './components/auth/AuthModal';
 import { StudentProfilePage } from './components/profile/StudentProfilePage';
 import { OpportunitiesPage } from './components/opportunities/OpportunitiesPage';
+import { ApplicationTrackerPage } from './components/applications/ApplicationTrackerPage';
 
 function App() {
   const navigate = useNavigate();
@@ -88,6 +89,17 @@ function App() {
               element={
                 user ? (
                   <OpportunitiesPage />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+            
+            <Route
+              path="/applications"
+              element={
+                user ? (
+                  <ApplicationTrackerPage />
                 ) : (
                   <Navigate to="/" replace />
                 )

@@ -17,8 +17,8 @@ interface ApplicationFromSupabase {
     title: string;
     companies: {
       company_name: string;
-    }[];
-  }[];
+    } | null;
+  } | null;
 }
 
 interface Application {
@@ -49,6 +49,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [interviewCount, setInterviewCount] = useState(0);
+  const [offerCount, setOfferCount] = useState(0);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -93,15 +96,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
               )
             `)
             .eq('student_id', studentData.student_id)
-            .order('applied_date', { ascending: false })
-            .limit(4);
+            .order('applied_date', { ascending: false });
 
           if (appError) throw new Error(`Error fetching applications: ${appError.message}`);
+            
+          const interviews = appData.filter(app => app.status === 'interview_scheduled' || app.status === 'interviewed').length;
+          const offers = appData.filter(app => app.status === 'selected').length;
+          setInterviewCount(interviews);
+          setOfferCount(offers);
 
-          const formattedApps = appData.map((app: ApplicationFromSupabase) => ({
+          const formattedApps = appData.slice(0, 4).map((app: ApplicationFromSupabase) => ({
             id: app.application_id,
-            company: app.opportunities?.[0]?.companies?.[0]?.company_name || 'Unknown Company',
-            position: app.opportunities?.[0]?.title || 'Unknown Position',
+            company: app.opportunities?.companies?.company_name || 'Unknown Company',
+            position: app.opportunities?.title || 'Unknown Position',
             status: app.status,
             appliedDate: app.applied_date,
           }));
@@ -121,6 +128,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
 
     fetchData();
   }, [user]);
+    
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigateTo(`/opportunities?q=${searchQuery.trim()}`);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -163,9 +177,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
       )
   }
 
-  const interviewCount = 0;
-  const offerCount = 0;
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm border-b">
@@ -176,7 +187,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
               <p className="text-sm text-gray-600">Welcome back, {profile?.full_name || 'Student'}!</p>
             </div>
 
-            <div className="relative">
+            <form onSubmit={handleSearch} className="relative">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
@@ -185,7 +196,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
-            </div>
+            </form>
           </div>
         </div>
       </div>
@@ -244,6 +255,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Recent Applications</h3>
               <motion.button
+                onClick={() => navigateTo('/applications')}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="text-purple-600 hover:text-purple-700 text-sm font-medium"
@@ -280,7 +292,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
               ) : (
                 <div className="text-center py-10 text-gray-500">
                   <p>You haven't applied to any opportunities yet.</p>
-                  <button className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg">Browse Opportunities</button>
+                  <button onClick={() => navigateTo('/opportunities')} className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg">Browse Opportunities</button>
                 </div>
               )}
             </div>
