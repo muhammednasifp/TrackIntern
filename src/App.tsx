@@ -3,9 +3,6 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Navbar } from './components/layout/Navbar';
 import { HeroSection } from './components/landing/HeroSection';
-import { FeaturesSection } from './components/landing/FeaturesSection';
-import { HowItWorksSection } from './components/landing/HowItWorksSection';
-import { Footer } from './components/landing/Footer';
 import { StudentDashboard } from './components/dashboard/StudentDashboard';
 import { useAuthStore } from './stores/authStore';
 import { AuthModal } from './components/auth/AuthModal';
@@ -54,15 +51,10 @@ function App() {
                 user ? (
                   <Navigate to="/dashboard" replace />
                 ) : (
-                  <>
-                    <HeroSection
-                      onLoginClick={() => openAuth('signin')}
-                      onGetStartedClick={() => openAuth('signup')}
-                    />
-                    <FeaturesSection />
-                    <HowItWorksSection />
-                    <Footer />
-                  </>
+                  <HeroSection
+                    onLoginClick={() => openAuth('signin')}
+                    onGetStartedClick={() => openAuth('signup')}
+                  />
                 )
               }
             />
