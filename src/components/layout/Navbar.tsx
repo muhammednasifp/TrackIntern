@@ -69,6 +69,9 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo }) => {
                         <button onClick={() => navigateTo('/dashboard')} className="block w-full text-left px-3 py-2 text-gray-300 hover:bg-cosmic-blue rounded-lg transition-colors">
                           Dashboard
                         </button>
+                        <button onClick={() => navigateTo('/opportunities')} className="block w-full text-left px-3 py-2 text-gray-300 hover:bg-cosmic-blue rounded-lg transition-colors">
+                          Opportunities
+                        </button>
                         <button onClick={() => navigateTo('/profile')} className="block w-full text-left px-3 py-2 text-gray-300 hover:bg-cosmic-blue rounded-lg transition-colors">
                           Profile
                         </button>
@@ -117,6 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo }) => {
                 {user ? (
                   <div className="space-y-2">
                     <button onClick={() => { navigateTo('/dashboard'); setIsOpen(false); }} className="block text-gray-300 hover:text-white transition-colors">Dashboard</button>
+                    <button onClick={() => { navigateTo('/opportunities'); setIsOpen(false); }} className="block text-gray-300 hover:text-white transition-colors">Opportunities</button>
                     <button onClick={() => { navigateTo('/profile'); setIsOpen(false); }} className="block text-gray-300 hover:text-white transition-colors">Profile</button>
                     <button onClick={handleSignOut} className="block w-full text-left text-red-400 hover:text-red-300 transition-colors">Sign Out</button>
                   </div>

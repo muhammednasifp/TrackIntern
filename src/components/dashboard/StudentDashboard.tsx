@@ -17,8 +17,8 @@ interface ApplicationFromSupabase {
     title: string;
     companies: {
       company_name: string;
-    } | null;
-  } | null;
+    }[];
+  }[];
 }
 
 interface Application {
@@ -100,8 +100,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
 
           const formattedApps = appData.map((app: ApplicationFromSupabase) => ({
             id: app.application_id,
-            company: app.opportunities?.companies?.company_name || 'Unknown Company',
-            position: app.opportunities?.title || 'Unknown Position',
+            company: app.opportunities?.[0]?.companies?.[0]?.company_name || 'Unknown Company',
+            position: app.opportunities?.[0]?.title || 'Unknown Position',
             status: app.status,
             appliedDate: app.applied_date,
           }));
@@ -363,6 +363,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
                 <motion.button
+                  onClick={() => navigateTo('/opportunities')}
                   whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
                   className={`w-full p-3 bg-purple-600 text-white rounded-lg font-medium flex items-center justify-center space-x-2`}

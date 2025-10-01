@@ -7,6 +7,7 @@ import { StudentDashboard } from './components/dashboard/StudentDashboard';
 import { useAuthStore } from './stores/authStore';
 import { AuthModal } from './components/auth/AuthModal';
 import { StudentProfilePage } from './components/profile/StudentProfilePage';
+import { OpportunitiesPage } from './components/opportunities/OpportunitiesPage';
 
 function App() {
   const navigate = useNavigate();
@@ -76,6 +77,17 @@ function App() {
               element={
                 user ? (
                   <StudentProfilePage navigateTo={navigateTo} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+
+            <Route
+              path="/opportunities"
+              element={
+                user ? (
+                  <OpportunitiesPage />
                 ) : (
                   <Navigate to="/" replace />
                 )

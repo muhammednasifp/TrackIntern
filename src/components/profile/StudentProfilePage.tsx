@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import toast from 'react-hot-toast';
-import { UserCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { UserCircleIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, DocumentIcon, TrophyIcon } from '@heroicons/react/24/outline';
 
 interface StudentProfilePageProps {
   navigateTo: (path: string) => void;
@@ -23,12 +23,32 @@ interface ProfileFormData {
   bio: string;
 }
 
+interface Skill {
+  skill_id: string;
+  skill_name: string;
+  category: string;
+}
+
+interface Achievement {
+  title: string;
+  type: string;
+  issuing_organization: string;
+  description: string;
+  date_achieved: string;
+}
+
 export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigateTo }) => {
   const { user } = useAuthStore();
   const [formData, setFormData] = useState<Partial<ProfileFormData>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [studentId, setStudentId] = useState<string | null>(null);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [newAchievement, setNewAchievement] = useState<Partial<Achievement>>({});
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeUrl, setResumeUrl] = useState<string>('');
 
   // Fetch existing profile data
   const fetchProfile = useCallback(async () => {
