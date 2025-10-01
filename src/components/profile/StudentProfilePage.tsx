@@ -57,8 +57,9 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string>('');
 
-    const calculateProfileStrength = useCallback(
-    (profile: any, skills: string[], achievements: Achievement[], resumeUrl: string): number => {
+  // Replace `any` with the more specific `Partial<ProfileFormData>` type
+  const calculateProfileStrength = useCallback(
+    (profile: Partial<ProfileFormData>, skills: string[], achievements: Achievement[], resumeUrl: string): number => {
       let strength = 0;
       if (profile.full_name) strength += 10;
       if (profile.college_name) strength += 10;
@@ -239,27 +240,44 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
     const toastId = toast.loading('Saving your profile...');
 
     try {
-        const profileData = {
-            ...formData,
-            user_id: user.id,
-            skills: studentSkills,
-            ...(studentId && { student_id: studentId }), // Include student_id only if it exists
-            year_of_study: Number(formData.year_of_study),
-            cgpa: Number(formData.cgpa),
-            updated_at: new Date().toISOString(), // Manually update timestamp
-        };
+      const payload = {
+        full_name: formData.full_name,
+        college_name: formData.college_name,
+        course: formData.course,
+        specialization: formData.specialization,
+        year_of_study: Number(formData.year_of_study),
+        cgpa: Number(formData.cgpa),
+        linkedin_url: formData.linkedin_url,
+        github_url: formData.github_url,
+        portfolio_url: formData.portfolio_url,
+        bio: formData.bio,
+        skills: studentSkills,
+        user_id: user.id,
+        updated_at: new Date().toISOString(),
+      };
 
-      const { data, error } = await supabase.from('students').upsert(profileData, {
-        onConflict: 'user_id'
-      }).select().single();
+      let error;
 
-      if (error) throw error;
-      
-      if (data) {
-        setStudentId(data.student_id);
+      if (studentId) {
+        // Profile exists, so UPDATE it
+        const { error: updateError } = await supabase
+          .from('students')
+          .update(payload)
+          .eq('user_id', user.id);
+        error = updateError;
+      } else {
+        // No profile exists, so INSERT a new one
+        const { error: insertError } = await supabase
+          .from('students')
+          .insert(payload);
+        error = insertError;
       }
 
+      if (error) throw error;
+
       toast.success('Profile saved successfully!', { id: toastId });
+      // Refetch profile to get the new student_id if it was an insert
+      fetchProfile(); 
       navigateTo('/dashboard');
     } catch (error: unknown) {
       const err = error as Error;
@@ -411,7 +429,7 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
                                 <p className="text-sm text-gray-400">{ach.issuing_organization} - {new Date(ach.date_achieved).getFullYear()}</p>
                                 <p className="text-sm text-gray-300 mt-1">{ach.description}</p>
                             </div>
-                            <button onClick={() => handleDeleteAchievement(ach.achievement_id)}>
+                            <button type="button" onClick={() => handleDeleteAchievement(ach.achievement_id)}>
                                 <XMarkIcon className="w-5 h-5 text-red-400 hover:text-red-300" />
                             </button>
                         </div>

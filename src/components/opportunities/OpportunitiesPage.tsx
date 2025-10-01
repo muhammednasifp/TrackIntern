@@ -3,6 +3,19 @@ import { supabase } from '../../lib/supabase';
 import { motion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 
+// Interface for the data fetched from Supabase
+interface FetchedOpportunity {
+  opportunity_id: string;
+  title: string;
+  companies: { company_name: string } | null;
+  stipend_min: number | null;
+  stipend_max: number | null;
+  location: string[] | null;
+  work_mode: string;
+  application_deadline: string | null;
+}
+
+// Interface for the formatted data used in the component's state
 interface Opportunity {
   opportunity_id: string;
   title: string;
@@ -44,11 +57,18 @@ export const OpportunitiesPage: React.FC = () => {
             application_deadline
           `)
           .eq('status', 'active')
-          .order('application_deadline', { ascending: true });
+          .order('application_deadline', { ascending: true })
+          .returns<FetchedOpportunity[]>(); // <-- This is the key fix!
 
         if (error) throw error;
+        
+        // Also, handle the case where data might be null or empty
+        if (!data) {
+            setOpportunities([]);
+            return;
+        }
 
-        const formatted = data.map((item: any) => ({
+        const formatted = data.map((item) => ({ // No need to re-type `item` here, TypeScript now knows its shape!
           opportunity_id: item.opportunity_id,
           title: item.title,
           company_name: item.companies?.company_name || 'Unknown Company',
