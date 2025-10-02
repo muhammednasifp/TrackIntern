@@ -6,6 +6,7 @@ interface User {
   email: string;
   user_metadata: {
     user_type?: 'student' | 'company';
+    full_name?: string;
   };
 }
 
@@ -18,14 +19,14 @@ interface StudentProfile {
 
 interface AuthState {
   user: User | null;
-  profile: StudentProfile | null; // Added
-  studentId: string | null;      // Added
+  profile: StudentProfile | null;
+  studentId: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, userType: 'student' | 'company') => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, userType: 'student' | 'company', fullName: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   checkSession: () => Promise<void>;
-  fetchUserProfile: () => Promise<void>; // Added
+  fetchUserProfile: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -45,14 +46,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .eq('user_id', user.id)
         .single();
 
-      if (error) {
-        console.log('No student profile found for this user yet.');
-        set({ profile: null, studentId: null });
-        return;
+      if (error && error.code !== 'PGRST116') { // Handle cases other than "no rows found"
+        throw error;
       }
 
       if (data) {
         set({ profile: data, studentId: data.student_id });
+      } else {
+        set({ profile: null, studentId: null });
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -60,29 +61,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signIn: async (email: string, password: string) => {
+  signIn: async (email, password) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       if (data.user) {
         set({ user: data.user as User });
-        await get().fetchUserProfile(); // Fetch profile on sign-in
+        await get().fetchUserProfile();
       }
-
       return { success: true };
-    } catch {
-      return { success: false, error: 'An unexpected error occurred' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'An unexpected error occurred' };
     }
   },
 
-  signUp: async (email: string, password: string, userType: 'student' | 'company') => {
+  // Simplified signUp function
+  signUp: async (email, password, userType, fullName) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -90,54 +84,63 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         options: {
           data: {
             user_type: userType,
+            full_name: fullName, // The trigger will use this data
           },
         },
       });
 
-      if (error) {
-        return { success: false, error: error.message };
-      }
+      if (error) throw error;
+      if (!data.user) throw new Error('Sign up successful, but no user data returned.');
 
-      if (data.user) {
-        set({ user: data.user as User });
-      }
+      // The trigger function in Supabase now handles profile creation automatically.
+      // We no longer need to insert into the 'students' table from here.
+
+      // We can still set the user in the store and fetch the profile which was just created.
+      set({ user: data.user as User });
+      await get().fetchUserProfile();
 
       return { success: true };
-    } catch {
-      return { success: false, error: 'An unexpected error occurred' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'An unexpected error occurred' };
     }
   },
 
   signOut: async () => {
     try {
       await supabase.auth.signOut();
-      set({ user: null, profile: null, studentId: null }); // Clear profile on sign out
+      set({ user: null, profile: null, studentId: null });
     } catch {
       console.error('Error signing out');
     }
   },
 
   checkSession: async () => {
+    set({ loading: true });
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         set({ user: session.user as User });
-        await get().fetchUserProfile(); // Fetch profile on session check
+        await get().fetchUserProfile();
       }
-      set({ loading: false });
     } catch (error) {
       console.error('Error checking session:', error);
+    } finally {
       set({ loading: false });
     }
   },
 }));
 
-// Listen for auth changes
-supabase.auth.onAuthStateChange((_, session) => {
+// Listen for auth state changes to keep the store in sync
+supabase.auth.onAuthStateChange((event, session) => {
+  const store = useAuthStore.getState();
   if (session?.user) {
-    useAuthStore.setState({ user: session.user as User });
-    useAuthStore.getState().fetchUserProfile(); // Fetch profile on auth state change
-  } else {
-    useAuthStore.setState({ user: null, profile: null, studentId: null });
+    // If the user in the store is different, or there was no user before, update the session
+    if (store.user?.id !== session.user.id) {
+        set({ user: session.user as User });
+        store.fetchUserProfile();
+    }
+  } else if (!session?.user && store.user) {
+    // If there's no session but there is a user in the store, sign them out
+    set({ user: null, profile: null, studentId: null });
   }
 });

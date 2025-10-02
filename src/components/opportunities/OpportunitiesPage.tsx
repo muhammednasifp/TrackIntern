@@ -1,182 +1,421 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  MagnifyingGlassIcon,
+  XMarkIcon,
+  BuildingOffice2Icon,
+} from '@heroicons/react/24/outline';
 import { supabase } from '../../lib/supabase';
-import { motion } from 'framer-motion';
-import { useLocation } from 'react-router-dom';
+import OpportunityCard, { 
+  OpportunityCardOpportunity, 
+  StudentProfileSnapshot 
+} from './OpportunityCard';
+import { useAuthStore } from '../../stores/authStore';
 
-// Interface for the data fetched from Supabase
+type TabKey = 'internships' | 'placements';
+
 interface FetchedOpportunity {
   opportunity_id: string;
   title: string;
-  companies: { company_name: string } | null;
-  stipend_min: number | null;
-  stipend_max: number | null;
-  location: string[] | null;
-  work_mode: string;
-  application_deadline: string | null;
+  type: 'internship' | 'placement' | null;
+  category?: string | null;
+  domain?: string | null;
+  stipend_min?: number | null;
+  stipend_max?: number | null;
+  ctc_min?: number | null;
+  ctc_max?: number | null;
+  currency?: string | null;
+  duration_months?: number | null;
+  work_mode?: string | null;
+  location?: string[] | string | null;
+  application_deadline?: string | null;
+  created_at?: string | null;
+  companies?: {
+    company_name?: string | null;
+    brand_logo_url?: string | null;
+    logo_url?: string | null;
+    image_url?: string | null;
+  } | null;
 }
 
-// Interface for the formatted data used in the component's state
-interface Opportunity {
-  opportunity_id: string;
-  title: string;
-  company_name: string;
-  stipend_min: number | null;
-  stipend_max: number | null;
-  location: string[];
-  work_mode: string;
-  application_deadline: string | null;
-}
+const TYPE_TAGS = ['Tech', 'Non-Tech', 'Core', 'Research'] as const;
 
-export const OpportunitiesPage: React.FC = () => {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const location = useLocation();
-  const [searchQuery, setSearchQuery] = useState(new URLSearchParams(location.search).get('q') || '');
-
-  const [filters, setFilters] = useState({
-    workMode: '',
-    location: '',
-  });
+// Simple debounce hook
+const useDebounce = <T,>(value: T, delay: number): T => {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
   useEffect(() => {
-    const fetchOpportunities = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { data, error } = await supabase
-          .from('opportunities')
-          .select(`
-            opportunity_id,
-            title,
-            companies:companies(company_name),
-            stipend_min,
-            stipend_max,
-            location,
-            work_mode,
-            application_deadline
-          `)
-          .eq('status', 'active')
-          .order('application_deadline', { ascending: true })
-          .returns<FetchedOpportunity[]>(); // <-- This is the key fix!
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
 
-        if (error) throw error;
-        
-        // Also, handle the case where data might be null or empty
-        if (!data) {
-            setOpportunities([]);
-            return;
-        }
-
-        const formatted = data.map((item) => ({ // No need to re-type `item` here, TypeScript now knows its shape!
-          opportunity_id: item.opportunity_id,
-          title: item.title,
-          company_name: item.companies?.company_name || 'Unknown Company',
-          stipend_min: item.stipend_min,
-          stipend_max: item.stipend_max,
-          location: Array.isArray(item.location) ? item.location : [],
-          work_mode: item.work_mode,
-          application_deadline: item.application_deadline,
-        }));
-
-        setOpportunities(formatted);
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError('Failed to load opportunities');
-        }
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      clearTimeout(handler);
     };
+  }, [value, delay]);
 
-    fetchOpportunities();
-  }, []);
-    
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
+  return debouncedValue;
+};
+
+const ShimmerCard: React.FC = () => (
+    <div className="animate-pulse rounded-3xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl">
+      <div className="mb-4 h-6 w-3/4 rounded bg-white/20" />
+      <div className="mb-2 h-4 w-1/2 rounded bg-white/10" />
+      <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className="h-16 rounded bg-white/10" />
+        <div className="h-16 rounded bg-white/10" />
+      </div>
+      <div className="mt-6 h-10 w-36 rounded-full bg-white/20" />
+    </div>
+);
+
+const EmptyState: React.FC<{ onClear?: () => void }> = ({ onClear }) => (
+  <div className="col-span-full mx-auto w-full max-w-md text-center py-16">
+    <div className="mx-auto mb-6 h-24 w-24 rounded-2xl border border-dashed border-white/20 bg-white/5 p-6">
+      <MagnifyingGlassIcon className="h-full w-full text-white/40" />
+    </div>
+    <h3 className="text-xl font-semibold text-white">No opportunities found</h3>
+    <p className="mt-2 text-sm text-white/70">Try adjusting your search or clearing filters to see more results.</p>
+    {onClear && (
+      <button
+        onClick={onClear}
+        className="mt-6 rounded-full bg-white px-5 py-2 text-sm font-semibold text-purple-700 shadow hover:shadow-lg transition"
+      >
+        Clear all filters
+      </button>
+    )}
+  </div>
+);
+
+const FilterPill: React.FC<{
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}> = ({ checked, onChange, label }) => (
+  <button
+    type="button"
+    onClick={onChange}
+    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+      checked
+        ? 'bg-white text-purple-700 shadow'
+        : 'bg-white/10 text-white hover:bg-white/20 border border-white/15'
+    }`}
+  >
+    {label}
+  </button>
+);
+
+export const OpportunitiesPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const studentId = user?.id || null;
+
+  // Get URL parameters - simple approach without react-router-dom
+  const getUrlParam = (key: string) => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(key);
   };
 
-  const filteredOpportunities = opportunities.filter((opp) => {
-    const searchMatch = opp.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        opp.company_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const workModeMatch = filters.workMode ? opp.work_mode === filters.workMode : true;
-    const locationMatch = filters.location 
-      ? Array.isArray(opp.location) && opp.location.some(loc => loc.toLowerCase().includes(filters.location.toLowerCase())) 
-      : true;
-    return searchMatch && workModeMatch && locationMatch;
+  const initialTab = (getUrlParam('tab') as TabKey) || 'internships';
+  const initialQuery = getUrlParam('q') || '';
+
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
+  const [filters, setFilters] = useState({
+    workMode: getUrlParam('workMode') || '',
+    types: new Set<string>(),
   });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  const [opportunities, setOpportunities] = useState<FetchedOpportunity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<FetchedOpportunity | null>(null);
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [savedOpportunities, setSavedOpportunities] = useState<Set<string>>(new Set());
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-red-600">
-        <p>{error}</p>
-      </div>
-    );
-  }
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (debouncedSearch) params.set('q', debouncedSearch);
+    params.set('tab', activeTab);
+    if (filters.workMode) params.set('workMode', filters.workMode);
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [debouncedSearch, activeTab, filters.workMode]);
+
+  // Load saved opportunities from memory (not localStorage)
+  const [savedInMemory] = useState<Set<string>>(new Set());
+
+  const fetchOpportunities = useCallback(async () => {
+    setLoading(true);
+    const serverType = activeTab === 'internships' ? 'internship' : 'placement';
+
+    try {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .select(`
+          opportunity_id, 
+          title, 
+          type, 
+          category, 
+          domain, 
+          stipend_min, 
+          stipend_max,
+          ctc_min, 
+          ctc_max, 
+          currency, 
+          duration_months, 
+          work_mode, 
+          location,
+          application_deadline, 
+          created_at,
+          company_id
+        `)
+        .eq('status', 'active')
+        .eq('type', serverType);
+
+      if (error) {
+        console.error('Error fetching opportunities:', error);
+        setOpportunities([]);
+      } else if (data) {
+        // Fetch company data separately for each opportunity
+        const opportunitiesWithCompanies = await Promise.all(
+          data.map(async (opp) => {
+            const { data: companyData } = await supabase
+              .from('companies')
+              .select('company_name, brand_logo_url')
+              .eq('company_id', opp.company_id)
+              .single();
+
+            return {
+              ...opp,
+              companies: companyData || null,
+            };
+          })
+        );
+
+        setOpportunities(opportunitiesWithCompanies as FetchedOpportunity[]);
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      setOpportunities([]);
+    }
+
+    setLoading(false);
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchOpportunities();
+  }, [fetchOpportunities]);
+  
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    
+    return opportunities.filter(o => {
+        const searchText = [
+          o.title, 
+          o.companies?.company_name, 
+          o.domain
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        
+        if (q && !searchText.includes(q)) return false;
+        if (filters.types.size > 0 && !filters.types.has(o.category || '')) return false;
+        if (filters.workMode && o.work_mode !== filters.workMode) return false;
+        
+        return true;
+    });
+  }, [debouncedSearch, filters, opportunities]);
+
+  const clearAllFilters = () => {
+    setFilters({ workMode: '', types: new Set() });
+    setSearchQuery('');
+  };
+
+  const onToggleSave = (opportunityId: string, next: boolean) => {
+    setSavedOpportunities(prev => {
+      const copy = new Set(prev);
+      if (next) {
+        copy.add(opportunityId);
+      } else {
+        copy.delete(opportunityId);
+      }
+      return copy;
+    });
+  };
+
+  const mappedToCard = (o: FetchedOpportunity): OpportunityCardOpportunity => ({
+    opportunity_id: o.opportunity_id,
+    title: o.title,
+    company: o.companies,
+    company_name: o.companies?.company_name,
+    location: o.location,
+    work_mode: o.work_mode,
+    stipend_min: o.type === 'internship' ? o.stipend_min : null,
+    stipend_max: o.type === 'internship' ? o.stipend_max : null,
+    ctc_min: o.type === 'placement' ? o.ctc_min : null,
+    ctc_max: o.type === 'placement' ? o.ctc_max : null,
+    currency: o.currency,
+    duration_months: o.duration_months,
+    application_deadline: o.application_deadline,
+    created_at: o.created_at,
+  });
+
+  // Simple student profile mock (since we don't have the full profile system yet)
+  const studentProfile: StudentProfileSnapshot = {
+    full_name: user?.email?.split('@')[0] || 'Student',
+    college_name: 'Your College',
+    course: 'B.Tech',
+    resume_url: null,
+    skills: [],
+    profile_strength: 50,
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Browse Opportunities</h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <input
-              type="text"
-              placeholder="Search by title or company..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
-            />
-            <select name="workMode" value={filters.workMode} onChange={handleFilterChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600">
-                <option value="">All Work Modes</option>
-                <option value="remote">Remote</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="onsite">Onsite</option>
-            </select>
-            <input
-              type="text"
-              name="location"
-              placeholder="Filter by location..."
-              value={filters.location}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
-            />
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 px-4 py-6 sm:px-6 md:px-8">
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="mb-6">
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <h1 className="text-3xl font-bold text-white">Browse Opportunities</h1>
+            <div className="flex items-center gap-2 text-sm text-white/70">
+              <BuildingOffice2Icon className="h-5 w-5" />
+              <span>{filtered.length} matching opportunities</span>
+            </div>
+          </div>
+        </header>
+
+        <div className="sticky top-16 z-20 py-4 bg-slate-900/50 backdrop-blur-lg -mx-4 px-4">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex items-center gap-2 mb-4">
+                    {(['internships', 'placements'] as TabKey[]).map(tab => (
+                    <button 
+                      key={tab} 
+                      onClick={() => setActiveTab(tab)}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                        activeTab === tab 
+                          ? 'bg-white text-purple-700 shadow' 
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                      }`}
+                    >
+                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </button>
+                    ))}
+                </div>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                    <div className="relative flex-1">
+                        <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/60" />
+                        <input 
+                          value={searchQuery} 
+                          onChange={e => setSearchQuery(e.target.value)} 
+                          placeholder="Search by title, company, or domain..."
+                          className="w-full rounded-full border border-white/15 bg-white/10 pl-10 pr-4 py-2 text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/30" 
+                        />
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={clearAllFilters} 
+                      className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10"
+                    >
+                        <XMarkIcon className="h-4 w-4" />
+                        Clear Filters
+                    </button>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {TYPE_TAGS.map(t => (
+                        <FilterPill
+                            key={t}
+                            label={t}
+                            checked={filters.types.has(t)}
+                            onChange={() => {
+                              setFilters(prev => {
+                                const newTypes = new Set(prev.types);
+                                if (newTypes.has(t)) {
+                                  newTypes.delete(t);
+                                } else {
+                                  newTypes.add(t);
+                                }
+                                return { ...prev, types: newTypes };
+                              });
+                            }}
+                        />
+                    ))}
+                </div>
+            </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredOpportunities.length > 0 ? (
-            filteredOpportunities.map((opp) => (
-              <motion.div
-                key={opp.opportunity_id}
-                className="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition-shadow"
-                whileHover={{ scale: 1.02 }}
-              >
-                <h2 className="text-xl font-semibold">{opp.title}</h2>
-                <p className="text-gray-600">{opp.company_name}</p>
-                <p className="text-gray-500 text-sm">
-                  Stipend: {opp.stipend_min ?? 'N/A'} - {opp.stipend_max ?? 'N/A'} INR
-                </p>
-                <p className="text-gray-500 text-sm">Location: {(Array.isArray(opp.location) && opp.location.length > 0) ? opp.location.join(', ') : 'Not specified'}</p>
-                <p className="text-gray-500 text-sm">Work Mode: {opp.work_mode}</p>
-                <p className="text-gray-500 text-sm">
-                  Deadline: {opp.application_deadline ? new Date(opp.application_deadline).toLocaleDateString() : 'N/A'}
-                </p>
-              </motion.div>
+
+        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 mt-6">
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => <ShimmerCard key={i} />)
+          ) : filtered.length > 0 ? (
+            filtered.map(o => (
+              <OpportunityCard
+                key={o.opportunity_id}
+                opportunity={mappedToCard(o)}
+                isSaved={savedOpportunities.has(o.opportunity_id)}
+                onToggleSave={onToggleSave}
+                onClick={() => { 
+                  setSelected(o); 
+                  setModalOpen(true); 
+                }}
+                showQuickApply
+                studentId={studentId}
+                studentProfile={studentProfile}
+              />
             ))
           ) : (
-            <p className="text-gray-600">No opportunities found.</p>
+            <EmptyState onClear={clearAllFilters} />
           )}
-        </div>
+        </section>
       </div>
+
+      {/* Simple Modal Placeholder - ApplicationModal doesn't exist yet */}
+      <AnimatePresence>
+        {isModalOpen && selected && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{selected.title}</h2>
+                  <p className="text-gray-600">{selected.companies?.company_name || 'Unknown Company'}</p>
+                </div>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <p className="text-gray-700">
+                  Application modal coming soon! This will allow you to apply for opportunities.
+                </p>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:shadow-lg transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

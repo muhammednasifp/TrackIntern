@@ -155,12 +155,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
 
   const profileStrength = profile?.profile_strength || 0;
 
+  // Determine the name to display
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Student';
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-4xl font-bold mb-2">
-            Welcome, {profile?.full_name || user?.email?.split('@')[0] || 'Student'}
+            Welcome, {displayName}
           </h1>
           <p className="text-lg text-gray-600 mb-8">Here's your job search at a glance.</p>
         </motion.div>
