@@ -14,17 +14,26 @@ interface Stat {
 }
 
 interface UpcomingDeadline {
-    opportunity_id: string;
-    title: string;
-    company_name: string;
-    application_deadline: string;
+  opportunity_id: string;
+  title: string;
+  company_name: string;
+  application_deadline: string;
 }
 
 interface RecentActivity {
-    application_id: string;
+  application_id: string;
+  title: string;
+  status: string;
+  status_updated_at: string;
+}
+
+interface ActivityData {
+  application_id: string;
+  status: string;
+  status_updated_at: string;
+  opportunities: {
     title: string;
-    status: string;
-    status_updated_at: string;
+  };
 }
 
 interface StudentDashboardProps {
@@ -44,7 +53,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
         setLoading(false);
         return;
       }
-      
+
       try {
         setLoading(true);
 
@@ -53,42 +62,40 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
           .from('applications')
           .select('status')
           .eq('student_id', studentId);
-        
+
         if (appError) throw appError;
 
         const totalApps = applications?.length || 0;
-        const interviews = applications?.filter(a => 
-          ['interview_scheduled', 'interviewed'].includes(a.status)
-        ).length || 0;
-        const offers = applications?.filter(a => 
-          ['selected', 'offer_sent', 'hired'].includes(a.status)
-        ).length || 0;
-        
+        const interviews =
+          applications?.filter(a => ['interview_scheduled', 'interviewed'].includes(a.status)).length || 0;
+        const offers =
+          applications?.filter(a => ['selected', 'offer_sent', 'hired'].includes(a.status)).length || 0;
+
         setStats([
-          { 
-            name: 'Total Applications', 
-            value: totalApps, 
-            icon: DocumentTextIcon, 
-            color: 'text-blue-600', 
-            bgColor: 'bg-blue-100' 
+          {
+            name: 'Total Applications',
+            value: totalApps,
+            icon: DocumentTextIcon,
+            color: 'text-blue-600',
+            bgColor: 'bg-blue-100',
           },
-          { 
-            name: 'Interviews', 
-            value: interviews, 
-            icon: BriefcaseIcon, 
-            color: 'text-purple-600', 
-            bgColor: 'bg-purple-100' 
+          {
+            name: 'Interviews',
+            value: interviews,
+            icon: BriefcaseIcon,
+            color: 'text-purple-600',
+            bgColor: 'bg-purple-100',
           },
-          { 
-            name: 'Offers', 
-            value: offers, 
-            icon: CheckCircleIcon, 
-            color: 'text-green-600', 
-            bgColor: 'bg-green-100' 
+          {
+            name: 'Offers',
+            value: offers,
+            icon: CheckCircleIcon,
+            color: 'text-green-600',
+            bgColor: 'bg-green-100',
           },
         ]);
 
-        // Fetch recent activity - Fixed the query and mapping
+        // Fetch recent activity
         const { data: activityData, error: activityError } = await supabase
           .from('applications')
           .select(`
@@ -100,34 +107,32 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
           .eq('student_id', studentId)
           .order('status_updated_at', { ascending: false })
           .limit(5);
-        
+
         if (activityError) throw activityError;
-        
-        // Fixed: Properly handle the nested opportunities data
-        const formattedActivity: RecentActivity[] = (activityData || []).map((item) => ({
-          application_id: item.application_id,
-          title: item.opportunities?.title || 'Unknown Opportunity',
-          status: item.status,
-          status_updated_at: item.status_updated_at
-        }));
-        
+
+        // ✅ Fixed mapping with null safety
+        const formattedActivity: RecentActivity[] =
+          (activityData as ActivityData[] | null)?.map(item => ({
+            application_id: item.application_id,
+            title: item.opportunities?.title || 'Unknown Opportunity',
+            status: item.status,
+            status_updated_at: item.status_updated_at,
+          })) ?? [];
+
         setRecentActivity(formattedActivity);
 
-        // Fetch upcoming deadlines - assuming the RPC function exists
-        const { data: deadlineData, error: deadlineError } = await supabase
-          .rpc('get_upcoming_deadlines_for_student', { 
-            p_student_id: studentId, 
-            p_limit: 3 
-          });
-        
+        // Fetch upcoming deadlines
+        const { data: deadlineData, error: deadlineError } = await supabase.rpc('get_upcoming_deadlines_for_student', {
+          p_student_id: studentId,
+          p_limit: 3,
+        });
+
         if (deadlineError) {
           console.error('Deadline fetch error:', deadlineError);
-          // Don't throw here, just set empty deadlines
           setUpcomingDeadlines([]);
         } else {
           setUpcomingDeadlines(deadlineData || []);
         }
-
       } catch (error) {
         console.error('Dashboard data fetch error:', error);
         toast.error('Failed to load dashboard data');
@@ -146,22 +151,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
       </div>
     );
   }
-  
+
   const profileStrength = profile?.profile_strength || 0;
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }} 
-          animate={{ opacity: 1, y: 0 }}
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-4xl font-bold mb-2">
             Welcome, {profile?.full_name || user?.email?.split('@')[0] || 'Student'}
           </h1>
-          <p className="text-lg text-gray-600 mb-8">
-            Here's your job search at a glance.
-          </p>
+          <p className="text-lg text-gray-600 mb-8">Here's your job search at a glance.</p>
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -169,11 +169,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {stats.map((stat, i) => (
-                <motion.div 
-                  key={stat.name} 
-                  initial={{ opacity: 0, y: 20 }} 
-                  animate={{ opacity: 1, y: 0 }} 
-                  transition={{ delay: 0.1 * i }} 
+                <motion.div
+                  key={stat.name}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 * i }}
                   className="bg-white border border-gray-200/80 rounded-2xl p-6 flex items-start justify-between shadow-sm"
                 >
                   <div>
@@ -193,19 +193,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
               <div className="bg-white border border-gray-200/80 rounded-2xl p-6 space-y-4 shadow-sm">
                 {recentActivity.length > 0 ? (
                   recentActivity.map((activity, i) => (
-                    <motion.div 
-                      key={activity.application_id} 
-                      initial={{ opacity: 0, x: -20 }} 
-                      animate={{ opacity: 1, x: 0 }} 
-                      transition={{ delay: 0.1 * i }} 
+                    <motion.div
+                      key={activity.application_id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 * i }}
                       className="flex justify-between items-center pb-4 border-b last:border-b-0 border-gray-100"
                     >
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-800 truncate">
-                          {activity.title}
-                        </p>
+                        <p className="font-semibold text-gray-800 truncate">{activity.title}</p>
                         <p className="text-sm text-gray-500">
-                          Status updated to: {' '}
+                          Status updated to:{' '}
                           <span className="font-medium text-purple-600 capitalize">
                             {activity.status.replace(/_/g, ' ')}
                           </span>
@@ -217,9 +215,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
                     </motion.div>
                   ))
                 ) : (
-                  <p className="text-gray-500 text-center py-8">
-                    No recent application updates.
-                  </p>
+                  <p className="text-gray-500 text-center py-8">No recent application updates.</p>
                 )}
               </div>
             </div>
@@ -230,63 +226,53 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
             <div className="bg-white border border-gray-200/80 rounded-2xl p-6 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">Profile Strength</h2>
-                <div className={`flex items-center gap-2 font-bold ${
-                  profileStrength > 70 ? 'text-green-600' : 
-                  profileStrength > 40 ? 'text-amber-600' : 'text-red-600'
-                }`}>
+                <div
+                  className={`flex items-center gap-2 font-bold ${
+                    profileStrength > 70 ? 'text-green-600' : profileStrength > 40 ? 'text-amber-600' : 'text-red-600'
+                  }`}
+                >
                   <ChartBarIcon className="w-5 h-5" />
                   {profileStrength}%
                 </div>
               </div>
               <div className="w-full h-3 bg-gray-200 rounded-full mb-4">
-                <motion.div 
-                  className="h-3 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" 
+                <motion.div
+                  className="h-3 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
                   initial={{ width: 0 }}
                   animate={{ width: `${profileStrength}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
+                  transition={{ duration: 1, ease: 'easeOut' }}
                 />
               </div>
-              <p className="text-sm text-gray-500 mb-4">
-                Complete your profile to increase your visibility to recruiters.
-              </p>
-              <button 
-                onClick={() => navigateTo('/profile')} 
+              <p className="text-sm text-gray-500 mb-4">Complete your profile to increase your visibility to recruiters.</p>
+              <button
+                onClick={() => navigateTo('/profile')}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg border border-gray-200 hover:bg-gray-200 transition-colors"
               >
-                <PencilIcon className="w-4 h-4" /> 
+                <PencilIcon className="w-4 h-4" />
                 Edit Profile
               </button>
             </div>
-            
+
             {/* Upcoming Deadlines */}
             <div className="bg-white border border-gray-200/80 rounded-2xl p-6 shadow-sm">
               <h2 className="text-xl font-semibold mb-4">Upcoming Deadlines</h2>
               <div className="space-y-4">
                 {upcomingDeadlines.length > 0 ? (
                   upcomingDeadlines.map(deadline => (
-                    <div 
-                      key={deadline.opportunity_id} 
-                      className="pb-4 border-b last:border-b-0 border-gray-100"
-                    >
-                      <p className="font-semibold text-gray-800 truncate">
-                        {deadline.title}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {deadline.company_name}
-                      </p>
+                    <div key={deadline.opportunity_id} className="pb-4 border-b last:border-b-0 border-gray-100">
+                      <p className="font-semibold text-gray-800 truncate">{deadline.title}</p>
+                      <p className="text-sm text-gray-500">{deadline.company_name}</p>
                       <p className="text-sm font-semibold text-red-600 mt-1">
-                        {new Date(deadline.application_deadline).toLocaleDateString('en-US', { 
-                          month: 'long', 
+                        {new Date(deadline.application_deadline).toLocaleDateString('en-US', {
+                          month: 'long',
                           day: 'numeric',
-                          year: 'numeric'
+                          year: 'numeric',
                         })}
                       </p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-gray-500 text-center py-4">
-                    No saved opportunities with upcoming deadlines.
-                  </p>
+                  <p className="text-gray-500 text-center py-4">No saved opportunities with upcoming deadlines.</p>
                 )}
               </div>
             </div>
@@ -294,25 +280,21 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
         </div>
 
         {/* CTA Section */}
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          transition={{ delay: 0.5 }} 
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
           className="mt-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-lg"
         >
           <div>
-            <h2 className="text-2xl font-bold text-white">
-              Ready to find your dream internship?
-            </h2>
-            <p className="text-purple-200 mt-1">
-              Browse hundreds of opportunities from top companies.
-            </p>
+            <h2 className="text-2xl font-bold text-white">Ready to find your dream internship?</h2>
+            <p className="text-purple-200 mt-1">Browse hundreds of opportunities from top companies.</p>
           </div>
-          <button 
-            onClick={() => navigateTo('/opportunities')} 
+          <button
+            onClick={() => navigateTo('/opportunities')}
             className="px-6 py-3 bg-white text-purple-700 font-bold rounded-full flex items-center gap-2 whitespace-nowrap hover:scale-105 transition-transform shadow"
           >
-            Browse Opportunities 
+            Browse Opportunities
             <ArrowUpRightIcon className="w-5 h-5" />
           </button>
         </motion.div>

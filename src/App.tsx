@@ -9,7 +9,7 @@ import { AuthModal } from './components/auth/AuthModal';
 import { StudentProfilePage } from './components/profile/StudentProfilePage';
 import { OpportunitiesPage } from './components/opportunities/OpportunitiesPage';
 import { ApplicationTrackerPage } from './components/applications/ApplicationTrackerPage';
-import { ProtectedRoute } from './components/auth/ProtectedRoute'; // Import ProtectedRoute
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 function App() {
   const navigate = useNavigate();
@@ -32,7 +32,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-indigo-900/20">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading TrackIntern...</p>
@@ -43,11 +43,10 @@ function App() {
 
   return (
     <>
-      <div className="min-h-screen">
+      <div className="min-h-screen bg-gray-50">
         <Navbar navigateTo={navigateTo} />
         <main className="pt-16">
           <Routes>
-            {/* Public Route */}
             <Route
               path="/"
               element={
@@ -62,15 +61,13 @@ function App() {
               }
             />
 
-            {/* Protected Routes Group */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<StudentDashboard />} />
+              <Route path="/dashboard" element={<StudentDashboard navigateTo={navigateTo} />} />
               <Route path="/profile" element={<StudentProfilePage navigateTo={navigateTo} />} />
               <Route path="/opportunities" element={<OpportunitiesPage />} />
               <Route path="/applications" element={<ApplicationTrackerPage />} />
             </Route>
 
-            {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

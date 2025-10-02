@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { motion } from 'framer-motion';
-import { PlusIcon } from '@heroicons/react/24/outline';
 
 interface Application {
   application_id: string;
@@ -12,17 +11,13 @@ interface Application {
 }
 
 const statusColumns = [
-  'submitted',
-  'under_review',
-  'shortlisted',
-  'interview_scheduled',
-  'selected',
-  'rejected',
+  { id: 'submitted', title: 'Submitted' },
+  { id: 'under_review', title: 'Under Review' },
+  { id: 'shortlisted', title: 'Shortlisted' },
+  { id: 'interview_scheduled', title: 'Interview' },
+  { id: 'selected', title: 'Selected' },
+  { id: 'rejected', title: 'Rejected' },
 ];
-
-const getStatusText = (status: string) => {
-    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-};
 
 export const ApplicationTrackerPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -32,7 +27,11 @@ export const ApplicationTrackerPage: React.FC = () => {
 
   useEffect(() => {
     const fetchApplications = async () => {
-      if (!user) return;
+      if (!user) { 
+        setLoading(false); 
+        return; 
+      }
+      
       setLoading(true);
       setError(null);
 
@@ -44,6 +43,11 @@ export const ApplicationTrackerPage: React.FC = () => {
           .single();
 
         if (studentError) throw studentError;
+        if (!studentData) {
+          setApplications([]);
+          setLoading(false);
+          return;
+        }
 
         const { data, error: appError } = await supabase
           .from('applications')
@@ -61,48 +65,127 @@ export const ApplicationTrackerPage: React.FC = () => {
 
         if (appError) throw appError;
 
-        const formatted = data.map((item: any) => ({
+        // Fixed: Properly type the data transformation
+        interface ApplicationData {
+          application_id: string;
+          status: string;
+          opportunities?: {
+            title?: string;
+            companies?: {
+              company_name?: string;
+            };
+          };
+        }
+
+        const formatted = (data as ApplicationData[] || []).map((item) => ({
           application_id: item.application_id,
           title: item.opportunities?.title || 'N/A',
           company_name: item.opportunities?.companies?.company_name || 'N/A',
           status: item.status,
         }));
+        
         setApplications(formatted);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        // Fixed: Properly handle the error type
+        if (err instanceof Error) {
+          setError(err.message);
+        } else if (typeof err === 'string') {
+          setError(err);
+        } else {
+          setError('An unexpected error occurred');
+        }
+        console.error('Error fetching applications:', err);
       } finally {
         setLoading(false);
       }
     };
+    
     fetchApplications();
   }, [user]);
     
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  const applicationsByStatus = useMemo(() => {
+    return statusColumns.reduce((acc, column) => {
+      acc[column.id] = applications.filter(app => app.status === column.id);
+      return acc;
+    }, {} as Record<string, Application[]>);
+  }, [applications]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-3xl font-bold mb-6">My Applications</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {statusColumns.map(status => (
-          <div key={status} className="bg-gray-200 rounded-lg p-3">
-            <h2 className="font-bold mb-4">{getStatusText(status)}</h2>
-            <div className="space-y-3">
-              {applications
-                .filter(app => app.status === status)
-                .map(app => (
-                  <motion.div
-                    key={app.application_id}
-                    className="bg-white p-3 rounded shadow"
-                    layout
-                  >
-                    <h3 className="font-semibold">{app.title}</h3>
-                    <p className="text-sm text-gray-600">{app.company_name}</p>
-                  </motion.div>
-                ))}
-            </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
+      <div className="max-w-7xl mx-auto">
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }} 
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            Application Tracker
+          </h1>
+          <p className="text-lg text-gray-600 mb-8">
+            Manage and track all your job applications in one place.
+          </p>
+        </motion.div>
+        
+        {error && (
+          <div 
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" 
+            role="alert"
+          >
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
           </div>
-        ))}
+        )}
+        
+        <div className="flex space-x-4 overflow-x-auto pb-4">
+          {statusColumns.map((column, index) => (
+            <div 
+              key={column.id} 
+              className="bg-gray-100 rounded-xl w-72 flex-shrink-0"
+            >
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+                  {column.title}
+                  <span className="text-sm font-normal text-gray-500 bg-gray-200 rounded-full px-2">
+                    {applicationsByStatus[column.id]?.length || 0}
+                  </span>
+                </h2>
+              </div>
+              
+              <div className="p-4 space-y-4 h-[60vh] overflow-y-auto">
+                {applicationsByStatus[column.id] && applicationsByStatus[column.id].length > 0 ? (
+                  applicationsByStatus[column.id].map((app, appIndex) => (
+                    <motion.div
+                      key={app.application_id}
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: (index * 0.1) + (appIndex * 0.05) }}
+                      className="bg-white p-4 rounded-lg shadow-sm border border-gray-200/80 cursor-pointer hover:shadow-md hover:border-purple-300 transition-all"
+                    >
+                      <h3 className="font-semibold text-gray-900 mb-1">
+                        {app.title}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {app.company_name}
+                      </p>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center text-sm text-gray-400 pt-10">
+                    No applications in this stage.
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
