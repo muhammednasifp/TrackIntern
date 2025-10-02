@@ -51,7 +51,7 @@ function App() {
     <>
       <div className="min-h-screen bg-gray-50">
         <Navbar navigateTo={navigateTo} theme={getNavbarTheme()} />
-        <main className="pt-16">
+        <main>
           <Routes>
             <Route
               path="/"
