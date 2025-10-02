@@ -102,21 +102,30 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
       animate={{ opacity: 1, y: 0 }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className="fixed top-4 left-1/2 z-[9999] transition-all duration-300 ease-out"
-      style={{ transform: 'translateX(-50%)' }}
+      className="fixed top-4 z-[9999] transition-all duration-300 ease-out"
+      style={{ 
+        left: '50%', 
+        transform: 'translateX(-50%)',
+        minWidth: 'fit-content'
+      }}
     >
       <motion.div
         animate={{
           borderRadius: '24px',
+          width: isExpanded ? 'auto' : 'fit-content',
         }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className={`${
           theme === 'dark'
             ? 'bg-slate-900/90 border-slate-700/50'
             : 'bg-white/90 border-gray-200/50'
-        } backdrop-blur-lg border shadow-lg whitespace-nowrap max-w-[90vw]`}
+        } backdrop-blur-lg border shadow-lg whitespace-nowrap relative`}
+        style={{ 
+          minWidth: isExpanded ? '600px' : 'fit-content',
+          maxWidth: '90vw'
+        }}
       >
-        <div className="flex items-center px-4 py-3">
+        <div className={`flex items-center px-4 py-3 ${isExpanded ? 'justify-between' : 'justify-center'}`}>
           {/* Logo/Title */}
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -139,7 +148,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
                 animate={{ opacity: 1, width: 'auto' }}
                 exit={{ opacity: 0, width: 0 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
-                className="flex items-center ml-6 space-x-4 overflow-hidden"
+                className="flex items-center space-x-4 overflow-hidden"
               >
                 <motion.button
                   initial={{ opacity: 0, x: -20 }}
@@ -215,7 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
                     }} 
                     whileHover={{ scale: 1.1 }} 
                     whileTap={{ scale: 0.95 }}
-                    className="p-1"
+                    className="p-1 relative"
                   >
                     <UserCircleIcon className={`h-7 w-7 ${iconStyles}`} />
                   </motion.button>
@@ -225,7 +234,8 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
                         initial={{ opacity: 0, y: 10, scale: 0.95 }} 
                         animate={{ opacity: 1, y: 0, scale: 1 }} 
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className={`absolute right-0 mt-2 w-48 rounded-lg shadow-xl border z-[10000] ${dropdownStyles}`}
+                        transition={{ duration: 0.2 }}
+                        className={`absolute right-0 mt-2 w-48 rounded-lg shadow-xl border z-[10001] ${dropdownStyles}`}
                         data-dropdown="profile"
                         onMouseEnter={() => {
                           if (collapseTimeoutRef.current) {

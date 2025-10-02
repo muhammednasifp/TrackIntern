@@ -44,7 +44,10 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ them
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen(!isOpen);
+          onKeepExpanded?.();
+        }}
         className={`relative p-2 transition-colors rounded-full ${
           theme === 'dark' 
             ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
@@ -66,15 +69,19 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ them
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className={`absolute right-0 mt-2 w-96 backdrop-blur-lg rounded-2xl shadow-2xl border z-[10000] max-h-96 overflow-hidden ${
+            className={`absolute right-0 mt-2 w-96 backdrop-blur-lg rounded-2xl shadow-2xl border z-[10001] max-h-96 overflow-hidden ${
               theme === 'dark' 
                 ? 'bg-slate-800/95 border-slate-600/50' 
                 : 'bg-white/95 border-gray-200/50'
             }`}
             data-dropdown="notifications"
-            onMouseEnter={() => onKeepExpanded?.()}
+            onMouseEnter={() => {
+              onKeepExpanded?.();
+            }}
             onMouseLeave={() => {
-              setTimeout(() => setIsOpen(false), 300);
+              setTimeout(() => {
+                setIsOpen(false);
+              }, 300);
             }}
           >
             <div className={`p-4 border-b ${theme === 'dark' ? 'border-slate-600/50' : 'border-gray-200/50'}`}>

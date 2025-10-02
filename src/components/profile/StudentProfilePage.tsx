@@ -100,7 +100,6 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     []
   );
 
-  // Memoize profile strength calculation
   const profileStrength = useMemo(
     () => calculateProfileStrength(formData, achievements, resumeUrl),
     [formData, achievements, resumeUrl, calculateProfileStrength]
@@ -144,7 +143,7 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [user, calculateProfileStrength]);
+  }, [user]);
 
   useEffect(() => {
     fetchProfile();
@@ -158,7 +157,6 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     const { name, value, type } = e.target;
     let processedValue: any = value;
 
-    // Handle different input types
     if (type === 'number') {
       processedValue = value === '' ? null : parseFloat(value);
     } else if (name === 'year_of_study') {
@@ -250,16 +248,11 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     const toastId = toast.loading("Saving profile...");
     
     try {
-      // Validate and clean the form data
       const cleanedFormData = {
         ...formData,
-        // Ensure year_of_study is a number
         year_of_study: formData.year_of_study ? parseInt(formData.year_of_study.toString()) : null,
-        // Ensure cgpa is a number or null
         cgpa: formData.cgpa && formData.cgpa !== '' ? parseFloat(formData.cgpa.toString()) : null,
-        // Ensure skills is an array
         skills: Array.isArray(formData.skills) ? formData.skills : [],
-        // Clean up empty strings
         college_name: formData.college_name?.trim() || null,
         course: formData.course?.trim() || null,
         specialization: formData.specialization?.trim() || null,
@@ -269,42 +262,49 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         bio: formData.bio?.trim() || null,
       };
 
-      console.log("Cleaned form data:", cleanedFormData);
-
       let finalResumeUrl = resumeUrl;
       let currentStudentId = studentId;
 
-      // Ensure we have a student record
+      // If no student profile exists, it should have been created by the database trigger
+      // Let's try to fetch it first
       if (!currentStudentId) {
-        console.log("Creating new student record...");
-        const { data: newStudent, error: insertError } = await supabase
+        const { data: existingStudent, error: fetchError } = await supabase
           .from("students")
-          .insert({ 
-            user_id: user.id, 
-            full_name: cleanedFormData.full_name || user.user_metadata?.full_name || 'Student',
-            profile_strength: 10
-          })
-          .select()
+          .select("student_id")
+          .eq("user_id", user.id)
           .single();
         
-        if (insertError) {
-          console.error("Insert error:", insertError);
-          throw insertError;
+        if (fetchError && fetchError.code !== "PGRST116") {
+          throw new Error("Failed to fetch student profile. Please try refreshing the page.");
         }
         
-        currentStudentId = newStudent.student_id;
-        setStudentId(currentStudentId);
-        console.log("Created student with ID:", currentStudentId);
+        if (existingStudent) {
+          currentStudentId = existingStudent.student_id;
+          setStudentId(currentStudentId);
+        } else {
+          // If still no profile exists, create one (fallback)
+          const { data: newStudent, error: insertError } = await supabase
+            .from("students")
+            .insert({ 
+              user_id: user.id, 
+              full_name: cleanedFormData.full_name || user.user_metadata?.full_name || 'Student',
+              profile_strength: 10
+            })
+            .select()
+            .single();
+          
+          if (insertError) throw insertError;
+          
+          currentStudentId = newStudent.student_id;
+          setStudentId(currentStudentId);
+        }
       }
 
-      // Handle resume upload
       if (resumeFile && currentStudentId) {
-        console.log("Uploading resume...");
         finalResumeUrl = (await uploadResume(resumeFile, currentStudentId)) || resumeUrl;
         setResumeUrl(finalResumeUrl);
       }
 
-      // Prepare final payload for update
       const finalPayload = {
         ...cleanedFormData,
         resume_url: finalResumeUrl,
@@ -312,37 +312,32 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         updated_at: new Date().toISOString(),
       };
 
-      // Remove undefined values and user_id (not needed for update)
       Object.keys(finalPayload).forEach(key => {
         if (finalPayload[key] === undefined) {
           delete finalPayload[key];
         }
       });
-      delete finalPayload.user_id; // Remove user_id from update payload
+      delete (finalPayload as any).user_id; 
 
-      console.log("Final payload for update:", finalPayload);
-
-      // Update the student record
       const { error: updateError } = await supabase
         .from("students")
         .update(finalPayload)
         .eq("student_id", currentStudentId);
 
-      if (updateError) {
-        console.error("Update error:", updateError);
-        throw updateError;
-      }
+      if (updateError) throw updateError;
 
       toast.success("Profile saved successfully!", { id: toastId });
-      await fetchProfile(); // Refresh the profile data
+      await fetchProfile();
+      
+      // Update the auth store with the new profile data
+      const { fetchUserProfile } = useAuthStore.getState();
+      await fetchUserProfile();
       
     } catch (err: unknown) {
       console.error("Profile save error:", err);
       if (err instanceof Error) {
-        console.error("Error details:", err.message, err.stack);
         toast.error("Error saving profile: " + err.message, { id: toastId });
       } else {
-        console.error("Unknown error:", err);
         toast.error("An unexpected error occurred while saving the profile.", {
           id: toastId,
         });
@@ -652,6 +647,8 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   );
 };
 
+// ... Rest of the component (InputField, TextAreaField, etc.) remains the same
+
 const ProfileSection: React.FC<{
   icon: React.ReactNode;
   title: string;
@@ -673,6 +670,7 @@ const ProfileSection: React.FC<{
     {children}
   </div>
 );
+
 const InputField = ({
   label,
   ...props
@@ -688,14 +686,11 @@ const InputField = ({
     )}
     <input
       {...props}
-      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-colors shadow-sm hover:border-gray-400 autofill:bg-white autofill:text-gray-900"
-      style={{
-        WebkitTextFillColor: '#111827', // Force dark text color
-        WebkitBoxShadow: '0 0 0px 1000px white inset', // Force white background
-      }}
+      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-colors shadow-sm hover:border-gray-400"
     />
   </div>
 );
+
 const TextAreaField = ({
   label,
   ...props
@@ -712,14 +707,11 @@ const TextAreaField = ({
     <textarea
       {...props}
       rows={3}
-      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-colors shadow-sm hover:border-gray-400 resize-vertical autofill:bg-white autofill:text-gray-900"
-      style={{
-        WebkitTextFillColor: '#111827', // Force dark text color
-        WebkitBoxShadow: '0 0 0px 1000px white inset', // Force white background
-      }}
+      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-colors shadow-sm hover:border-gray-400 resize-vertical"
     />
   </div>
 );
+
 const SelectField = ({
   label,
   children,
@@ -740,7 +732,7 @@ const SelectField = ({
     <div className="relative">
       <select
         {...props}
-        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none appearance-none cursor-pointer shadow-sm hover:border-gray-400 transition-colors"
+        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none appearance-none cursor-pointer shadow-sm hover:border-gray-400"
       >
         {children}
       </select>

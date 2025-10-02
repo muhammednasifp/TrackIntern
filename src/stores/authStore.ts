@@ -69,23 +69,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (data) {
         set({ profile: data, studentId: data.student_id });
       } else {
-        // If no profile exists, create one
-        const { data: newProfile, error: insertError } = await supabase
-          .from('students')
-          .insert([{
-            user_id: user.id,
-            full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Student',
-            profile_strength: 10
-          }])
-          .select('student_id, full_name, profile_strength, bio, skills, resume_url, linkedin_url, github_url, college_name, course')
-          .single();
-
-        if (insertError) {
-          console.error('Error creating profile:', insertError);
-          set({ profile: null, studentId: null });
-        } else {
-          set({ profile: newProfile, studentId: newProfile.student_id });
-        }
+        // Profile should have been created by database trigger, but if not found, set null
+        // The user will be prompted to complete their profile
+        console.log('No student profile found - user may need to complete profile setup');
+        set({ profile: null, studentId: null });
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
