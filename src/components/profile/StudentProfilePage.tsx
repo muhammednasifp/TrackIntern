@@ -3,13 +3,12 @@ import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import toast from 'react-hot-toast';
-import { UserCircleIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, DocumentIcon, TrophyIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, PlusIcon, XMarkIcon, DocumentIcon, TrophyIcon, UserCircleIcon, LinkIcon, AcademicCapIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 interface StudentProfilePageProps {
   navigateTo: (path: string) => void;
 }
 
-// Define the shape of our form data based on the database schema
 interface ProfileFormData {
   full_name: string;
   college_name: string;
@@ -47,441 +46,232 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
   const [allSkills, setAllSkills] = useState<Skill[]>([]);
   const [studentSkills, setStudentSkills] = useState<string[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [newAchievement, setNewAchievement] = useState({
-      title: '',
-      type: 'project',
-      issuing_organization: '',
-      description: '',
-      date_achieved: '',
-  });
+  const [newAchievement, setNewAchievement] = useState({ title: '', type: 'project', issuing_organization: '', description: '', date_achieved: '' });
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string>('');
+  const [profileStrength, setProfileStrength] = useState(0);
 
-  // Replace `any` with the more specific `Partial<ProfileFormData>` type
-  const calculateProfileStrength = useCallback(
-    (profile: Partial<ProfileFormData>, skills: string[], achievements: Achievement[], resumeUrl: string): number => {
-      let strength = 0;
-      if (profile.full_name) strength += 10;
-      if (profile.college_name) strength += 10;
-      if (profile.course) strength += 10;
-      if (profile.cgpa) strength += 10;
-      if (profile.linkedin_url || profile.github_url || profile.portfolio_url) strength += 10;
-      if (skills.length > 0) strength += 20;
-      if (achievements.length > 0) strength += 20;
-      if (resumeUrl) strength += 10;
-      return Math.min(100, strength);
-    },
-    []
-  );
+  const calculateProfileStrength = useCallback((profile: Partial<ProfileFormData>, skills: string[], achievementsList: Achievement[], currentResumeUrl: string): number => {
+    let strength = 0;
+    const weights = { personal: 20, academic: 20, links: 10, skills: 25, achievements: 15, resume: 10 };
+    if (profile.full_name && profile.bio) strength += weights.personal;
+    if (profile.college_name && profile.course && profile.cgpa) strength += weights.academic;
+    if (profile.linkedin_url || profile.github_url || profile.portfolio_url) strength += weights.links;
+    if (skills.length >= 5) strength += weights.skills; else strength += (skills.length / 5) * weights.skills;
+    if (achievementsList.length > 0) strength += weights.achievements;
+    if (currentResumeUrl) strength += weights.resume;
+    return Math.round(Math.min(100, strength));
+  }, []);
 
-  // Fetch existing profile data
   const fetchProfile = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
-        throw error;
-      }
-
+      const { data, error } = await supabase.from('students').select('*').eq('user_id', user.id).single();
+      if (error && error.code !== 'PGRST116') throw error;
       if (data) {
-        setFormData({
-            full_name: data.full_name || '',
-            college_name: data.college_name || '',
-            course: data.course || '',
-            specialization: data.specialization || '',
-            year_of_study: data.year_of_study || 1,
-            cgpa: data.cgpa || 0,
-            linkedin_url: data.linkedin_url || '',
-            github_url: data.github_url || '',
-            portfolio_url: data.portfolio_url || '',
-            bio: data.bio || '',
-        });
+        setFormData(data);
         setStudentId(data.student_id);
         setStudentSkills(data.skills || []);
         setResumeUrl(data.resume_url || '');
-
-        const { data: achievementsData, error: achievementsError } = await supabase
-            .from('student_achievements')
-            .select('*')
-            .eq('student_id', data.student_id);
-
-        if (achievementsError) throw achievementsError;
-        setAchievements(achievementsData || []);
+        const { data: achData, error: achError } = await supabase.from('student_achievements').select('*').eq('student_id', data.student_id);
+        if (achError) throw achError;
+        setAchievements(achData || []);
+        setProfileStrength(calculateProfileStrength(data, data.skills || [], achData || [], data.resume_url || ''));
       }
-        
-      const { data: skillsData, error: skillsError } = await supabase
-        .from('skills_master')
-        .select('*');
-
+      const { data: skillsData, error: skillsError } = await supabase.from('skills_master').select('*');
       if (skillsError) throw skillsError;
       setAllSkills(skillsData || []);
-        
-    } catch (error: unknown) {
-      const err = error as Error;
+    } catch (err: any) {
       toast.error('Failed to load profile: ' + err.message);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, calculateProfileStrength]);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
-    
-  useEffect(() => {
-    if (!loading) {
-      const strength = calculateProfileStrength(formData, studentSkills, achievements, resumeUrl);
-      if (studentId) {
-        supabase
-          .from('students')
-          .update({ profile_strength: strength })
-          .eq('student_id', studentId)
-          .then();
-      }
-    }
-  }, [formData, studentSkills, achievements, resumeUrl, studentId, loading, calculateProfileStrength]);
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+  useEffect(() => { setProfileStrength(calculateProfileStrength(formData, studentSkills, achievements, resumeUrl)); }, [formData, studentSkills, achievements, resumeUrl, calculateProfileStrength]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
-    
-  const handleSkillChange = (skillName: string) => {
-    setStudentSkills(prev => 
-        prev.includes(skillName) 
-            ? prev.filter(s => s !== skillName)
-            : [...prev, skillName]
-    );
+
+  const handleSkillToggle = (skillName: string) => {
+    setStudentSkills(prev => prev.includes(skillName) ? prev.filter(s => s !== skillName) : [...prev, skillName]);
   };
-    
+
   const handleAddAchievement = async () => {
-      if (!newAchievement.title || !newAchievement.date_achieved) {
-          toast.error("Please fill in at least the title and date for the achievement.");
-          return;
-      }
-      if (!studentId) {
-          toast.error("Please save your main profile details first.");
-          return;
-      }
-      
-      const { data, error } = await supabase
-        .from('student_achievements')
-        .insert({ ...newAchievement, student_id: studentId })
-        .select()
-        .single();
-      
-      if (error) {
-          toast.error("Failed to add achievement: " + error.message);
-      } else if (data) {
-          toast.success("Achievement added!");
-          setAchievements(prev => [...prev, data]);
-          setNewAchievement({title: '', type: 'project', issuing_organization: '', description: '', date_achieved: ''});
-      }
-  };
-    
-  const handleDeleteAchievement = async (achievementId: string) => {
-      const { error } = await supabase
-        .from('student_achievements')
-        .delete()
-        .eq('achievement_id', achievementId);
-      
-      if (error) {
-          toast.error("Failed to delete achievement: " + error.message);
-      } else {
-          toast.success("Achievement removed.");
-          setAchievements(prev => prev.filter(a => a.achievement_id !== achievementId));
-      }
-  };
-
-  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    const file = e.target.files[0];
-    if (file.size > 2 * 1024 * 1024) { // 2MB limit
-        toast.error("File is too large. Maximum size is 2MB.");
-        return;
-    }
-    setResumeFile(file);
-
-    if (!user || !studentId) {
-      toast.error("Please save your profile before uploading a resume.");
+    if (!newAchievement.title || !newAchievement.date_achieved || !studentId) {
+      toast.error("Please fill required fields and save profile first.");
       return;
     }
-    const toastId = toast.loading("Uploading resume...");
-    const filePath = `${user.id}/${studentId}-resume.pdf`;
-    
-    const { error } = await supabase.storage
-      .from('resumes')
-      .upload(filePath, file, { upsert: true });
-
-    if (error) {
-      toast.error("Failed to upload resume: " + error.message, { id: toastId });
-    } else {
-      const { data: { publicUrl } } = supabase.storage.from('resumes').getPublicUrl(filePath);
-      await supabase.from('students').update({ resume_url: publicUrl }).eq('student_id', studentId);
-      setResumeUrl(publicUrl);
-      toast.success("Resume uploaded successfully!", { id: toastId });
+    const { data, error } = await supabase.from('student_achievements').insert({ ...newAchievement, student_id: studentId }).select().single();
+    if (error) { toast.error("Failed to add achievement: " + error.message); } 
+    else if (data) {
+      toast.success("Achievement added!");
+      setAchievements(prev => [...prev, data]);
+      setNewAchievement({ title: '', type: 'project', issuing_organization: '', description: '', date_achieved: '' });
     }
+  };
+
+  const handleDeleteAchievement = async (achievementId: string) => {
+    const { error } = await supabase.from('student_achievements').delete().eq('achievement_id', achievementId);
+    if (error) { toast.error("Failed to delete achievement: " + error.message); } 
+    else {
+      toast.success("Achievement removed.");
+      setAchievements(prev => prev.filter(a => a.achievement_id !== achievementId));
+    }
+  };
+
+  const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type !== 'application/pdf' || file.size > 2 * 1024 * 1024) {
+        toast.error("Please upload a PDF file under 2MB.");
+        return;
+      }
+      setResumeFile(file);
+    }
+  };
+  
+  const uploadResume = async (file: File, currentStudentId: string) => {
+    if (!user) return null;
+    const filePath = `${user.id}/${currentStudentId}-resume-${Date.now()}.pdf`;
+    const { error } = await supabase.storage.from('resumes').upload(filePath, file, { upsert: true });
+    if (error) throw error;
+    const { data: { publicUrl } } = supabase.storage.from('resumes').getPublicUrl(filePath);
+    return publicUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      toast.error('You must be logged in to save your profile.');
-      return;
-    }
-
+    if (!user) return toast.error('You must be logged in.');
     setSaving(true);
-    const toastId = toast.loading('Saving your profile...');
-
+    const toastId = toast.loading('Saving profile...');
     try {
-      const payload = {
-        full_name: formData.full_name,
-        college_name: formData.college_name,
-        course: formData.course,
-        specialization: formData.specialization,
-        year_of_study: Number(formData.year_of_study),
-        cgpa: Number(formData.cgpa),
-        linkedin_url: formData.linkedin_url,
-        github_url: formData.github_url,
-        portfolio_url: formData.portfolio_url,
-        bio: formData.bio,
-        skills: studentSkills,
-        user_id: user.id,
-        updated_at: new Date().toISOString(),
-      };
-
-      let error;
-
-      if (studentId) {
-        // Profile exists, so UPDATE it
-        const { error: updateError } = await supabase
-          .from('students')
-          .update(payload)
-          .eq('user_id', user.id);
-        error = updateError;
-      } else {
-        // No profile exists, so INSERT a new one
-        const { error: insertError } = await supabase
-          .from('students')
-          .insert(payload);
-        error = insertError;
+      let finalResumeUrl = resumeUrl;
+      let currentStudentId = studentId;
+      const profilePayload = { ...formData, skills: studentSkills, user_id: user.id, updated_at: new Date().toISOString() };
+      if (!currentStudentId) {
+        const { data: newStudent, error: insertError } = await supabase.from('students').insert({ user_id: user.id, full_name: profilePayload.full_name }).select().single();
+        if (insertError) throw insertError;
+        currentStudentId = newStudent.student_id;
+        setStudentId(currentStudentId);
       }
-
-      if (error) throw error;
-
+      if (resumeFile && currentStudentId) {
+        finalResumeUrl = await uploadResume(resumeFile, currentStudentId) || resumeUrl;
+        setResumeUrl(finalResumeUrl);
+      }
+      const finalPayload = { ...profilePayload, resume_url: finalResumeUrl, profile_strength: profileStrength };
+      const { error: updateError } = await supabase.from('students').update(finalPayload).eq('student_id', currentStudentId);
+      if (updateError) throw updateError;
       toast.success('Profile saved successfully!', { id: toastId });
-      // Refetch profile to get the new student_id if it was an insert
-      fetchProfile(); 
-      navigateTo('/dashboard');
-    } catch (error: unknown) {
-      const err = error as Error;
+      fetchProfile();
+    } catch (err: any) {
       toast.error('Error saving profile: ' + err.message, { id: toastId });
     } finally {
       setSaving(false);
     }
   };
-    
+  
   const handleNewAchievementChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setNewAchievement(prev => ({...prev, [name]: value}));
+    setNewAchievement(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div></div>;
 
   return (
-    <div className="min-h-screen bg-cosmic-blue p-4 sm:p-8">
+    <div className="min-h-screen bg-gray-50 text-gray-800 p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-            <button onClick={() => navigateTo('/dashboard')} className="flex items-center gap-2 text-nebula-purple hover:text-white transition-colors mb-6">
-                <ArrowLeftIcon className="w-5 h-5" />
-                Back to Dashboard
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-center mb-8">
+          <div>
+            <button onClick={() => navigateTo('/dashboard')} className="flex items-center gap-2 text-purple-600 hover:text-purple-800 font-semibold transition-colors mb-2">
+              <ArrowLeftIcon className="w-5 h-5" /> Back to Dashboard
             </button>
-            <h1 className="text-4xl font-bold text-stellar-white mb-2">My Profile</h1>
-            <p className="text-lg text-gray-400 mb-8">Keep your information up to date to attract the best opportunities.</p>
+            <h1 className="text-4xl font-bold text-gray-900">My Profile</h1>
+          </div>
+          <div className="text-right">
+            <div className="text-sm text-gray-500">Profile Strength</div>
+            <div className="text-2xl font-bold text-purple-600">{profileStrength}%</div>
+            <div className="w-24 h-2 bg-gray-200 rounded-full mt-1"><div className="h-2 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style={{width: `${profileStrength}%`}}></div></div>
+          </div>
         </motion.div>
 
-        <motion.form
-            onSubmit={handleSubmit}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="bg-glass-bg border border-glass-border rounded-2xl shadow-2xl p-8 backdrop-blur-xl space-y-8"
-        >
-            {/* Form Section: Personal Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2 flex items-center gap-4">
-                    <UserCircleIcon className="w-16 h-16 text-nebula-purple" />
-                    <div>
-                        <h2 className="text-2xl font-semibold text-stellar-white">Personal Information</h2>
-                        <p className="text-gray-400">This information will be visible to recruiters.</p>
+        <motion.form onSubmit={handleSubmit} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white border border-gray-200/80 rounded-2xl shadow-lg p-8 space-y-10">
+            <ProfileSection icon={<UserCircleIcon />} title="Personal Information" subtitle="This will be visible to recruiters.">
+                <div className="grid md:grid-cols-2 gap-6">
+                    <InputField label="Full Name" name="full_name" value={formData.full_name || ''} onChange={handleInputChange} />
+                    <div className="md:col-span-2"><TextAreaField label="Bio / Tagline" name="bio" value={formData.bio || ''} onChange={handleInputChange} placeholder="E.g., Aspiring Full-Stack Developer..." /></div>
+                </div>
+            </ProfileSection>
+            <ProfileSection icon={<AcademicCapIcon />} title="Academic Details">
+                <div className="grid md:grid-cols-2 gap-6">
+                    <InputField label="College Name" name="college_name" value={formData.college_name || ''} onChange={handleInputChange} />
+                    <InputField label="Course" name="course" value={formData.course || ''} onChange={handleInputChange} placeholder="e.g., B.Tech" />
+                    <InputField label="Specialization" name="specialization" value={formData.specialization || ''} onChange={handleInputChange} placeholder="e.g., Computer Science" />
+                    <div className="grid grid-cols-2 gap-6">
+                        <SelectField label="Year" name="year_of_study" value={formData.year_of_study || 1} onChange={handleInputChange}>
+                            {[1, 2, 3, 4].map(y => <option key={y} value={y}>{y}{['st', 'nd', 'rd', 'th'][y - 1]} Year</option>)}
+                        </SelectField>
+                        <InputField label="CGPA" type="number" step="0.01" max="10" name="cgpa" value={formData.cgpa || ''} onChange={handleInputChange} />
                     </div>
                 </div>
-                <div>
-                    <label htmlFor="full_name" className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
-                    <input type="text" name="full_name" id="full_name" value={formData.full_name || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" />
-                </div>
-                <div className="md:col-span-2">
-                    <label htmlFor="bio" className="block text-sm font-medium text-gray-300 mb-2">Bio / Tagline</label>
-                    <textarea name="bio" id="bio" value={formData.bio || ''} onChange={handleInputChange} rows={2} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" placeholder="E.g., Aspiring Full-Stack Developer"></textarea>
-                </div>
-            </div>
-            
-            {/* Resume Section */}
-            <div className="pt-6 border-t border-glass-border">
-                <div className="flex items-center gap-4 mb-4">
-                     <DocumentIcon className="w-10 h-10 text-nebula-purple" />
-                     <div>
-                        <h2 className="text-2xl font-semibold text-stellar-white">Resume</h2>
-                        <p className="text-gray-400">Upload your latest resume (PDF, max 2MB).</p>
-                    </div>
-                </div>
+            </ProfileSection>
+            <ProfileSection icon={<LinkIcon />} title="Online Presence">
+                 <div className="grid md:grid-cols-2 gap-6">
+                    <InputField type="url" label="LinkedIn URL" name="linkedin_url" value={formData.linkedin_url || ''} onChange={handleInputChange} />
+                    <InputField type="url" label="GitHub URL" name="github_url" value={formData.github_url || ''} onChange={handleInputChange} />
+                    <div className="md:col-span-2"><InputField type="url" label="Portfolio/Website URL" name="portfolio_url" value={formData.portfolio_url || ''} onChange={handleInputChange} /></div>
+                 </div>
+            </ProfileSection>
+            <ProfileSection icon={<DocumentIcon />} title="Resume" subtitle="Upload your latest resume (PDF, max 2MB).">
                 <div className="flex items-center gap-4">
                     <input type="file" id="resume" onChange={handleResumeUpload} className="hidden" accept=".pdf" />
-                    <label htmlFor="resume" className="cursor-pointer px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30">
-                        {resumeFile ? resumeFile.name : "Choose File"}
-                    </label>
-                    {resumeUrl && <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="text-nebula-purple hover:underline">View Current Resume</a>}
+                    <label htmlFor="resume" className="cursor-pointer px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg border border-gray-200 hover:bg-gray-200 transition-colors">{resumeFile ? `Selected: ${resumeFile.name}` : "Choose File"}</label>
+                    {resumeUrl && <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">View Current Resume</a>}
                 </div>
-            </div>
-
-            {/* Form Section: Academic Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-glass-border">
-                <div className="md:col-span-2">
-                    <h2 className="text-2xl font-semibold text-stellar-white">Academic Details</h2>
-                </div>
-                <div>
-                    <label htmlFor="college_name" className="block text-sm font-medium text-gray-300 mb-2">College Name</label>
-                    <input type="text" name="college_name" id="college_name" value={formData.college_name || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" />
-                </div>
-                 <div>
-                    <label htmlFor="course" className="block text-sm font-medium text-gray-300 mb-2">Course</label>
-                    <input type="text" name="course" id="course" value={formData.course || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" placeholder="e.g., B.Tech" />
-                </div>
-                <div>
-                    <label htmlFor="specialization" className="block text-sm font-medium text-gray-300 mb-2">Specialization</label>
-                    <input type="text" name="specialization" id="specialization" value={formData.specialization || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" placeholder="e.g., Computer Science" />
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                    <div>
-                        <label htmlFor="year_of_study" className="block text-sm font-medium text-gray-300 mb-2">Year</label>
-                        <select name="year_of_study" id="year_of_study" value={formData.year_of_study || 1} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none appearance-none">
-                            <option value={1}>1st Year</option>
-                            <option value={2}>2nd Year</option>
-                            <option value={3}>3rd Year</option>
-                            <option value={4}>4th Year</option>
-                        </select>
-                    </div>
-                     <div>
-                        <label htmlFor="cgpa" className="block text-sm font-medium text-gray-300 mb-2">CGPA</label>
-                        <input type="number" step="0.01" max="10" name="cgpa" id="cgpa" value={formData.cgpa || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" />
-                    </div>
-                </div>
-            </div>
-            
-             {/* Skills Section */}
-            <div className="pt-6 border-t border-glass-border">
-                <h2 className="text-2xl font-semibold text-stellar-white mb-4">Skills</h2>
+            </ProfileSection>
+            <ProfileSection icon={<SparklesIcon />} title="Skills">
                 <div className="flex flex-wrap gap-2">
                     {allSkills.map(skill => (
-                        <button
-                            type="button"
-                            key={skill.skill_id}
-                            onClick={() => handleSkillChange(skill.skill_name)}
-                            className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                                studentSkills.includes(skill.skill_name)
-                                ? 'bg-nebula-purple text-white'
-                                : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                            }`}
-                        >
+                        <button type="button" key={skill.skill_id} onClick={() => handleSkillToggle(skill.skill_name)}
+                            className={`px-3 py-1 rounded-full text-sm transition-all duration-200 border ${studentSkills.includes(skill.skill_name) ? 'bg-purple-600 border-purple-600 text-white font-semibold' : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'}`}>
                             {skill.skill_name}
                         </button>
                     ))}
                 </div>
-            </div>
-
-            {/* Achievements Section */}
-            <div className="pt-6 border-t border-glass-border">
-                <div className="flex items-center gap-4 mb-4">
-                     <TrophyIcon className="w-10 h-10 text-nebula-purple" />
-                     <div>
-                        <h2 className="text-2xl font-semibold text-stellar-white">Achievements</h2>
-                        <p className="text-gray-400">Showcase your projects, certifications, and awards.</p>
-                    </div>
-                </div>
-                {/* Existing Achievements */}
+            </ProfileSection>
+            <ProfileSection icon={<TrophyIcon />} title="Achievements" subtitle="Showcase your projects and certifications.">
                 <div className="space-y-4 mb-6">
                     {achievements.map(ach => (
-                        <div key={ach.achievement_id} className="flex justify-between items-start p-3 bg-white/5 rounded-lg">
+                        <div key={ach.achievement_id} className="flex justify-between items-start p-3 bg-gray-50 rounded-lg border border-gray-200">
                             <div>
-                                <h4 className="font-semibold text-white">{ach.title} ({ach.type})</h4>
-                                <p className="text-sm text-gray-400">{ach.issuing_organization} - {new Date(ach.date_achieved).getFullYear()}</p>
-                                <p className="text-sm text-gray-300 mt-1">{ach.description}</p>
+                                <h4 className="font-semibold text-gray-800">{ach.title} ({ach.type})</h4>
+                                <p className="text-sm text-gray-500">{ach.issuing_organization} - {new Date(ach.date_achieved).getFullYear()}</p>
                             </div>
-                            <button type="button" onClick={() => handleDeleteAchievement(ach.achievement_id)}>
-                                <XMarkIcon className="w-5 h-5 text-red-400 hover:text-red-300" />
-                            </button>
+                            <button type="button" onClick={() => handleDeleteAchievement(ach.achievement_id)}><XMarkIcon className="w-5 h-5 text-red-500 hover:text-red-700" /></button>
                         </div>
                     ))}
                 </div>
-                 {/* Add New Achievement Form */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-glass-border rounded-lg">
-                    <input type="text" name="title" placeholder="Title" value={newAchievement.title} onChange={handleNewAchievementChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white" />
-                    <select name="type" value={newAchievement.type} onChange={handleNewAchievementChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-dashed border-gray-300 rounded-lg">
+                    <InputField name="title" placeholder="Title" value={newAchievement.title} onChange={handleNewAchievementChange} label=""/>
+                    <SelectField name="type" value={newAchievement.type} onChange={handleNewAchievementChange} label="">
                         <option value="project">Project</option>
                         <option value="certification">Certification</option>
                         <option value="hackathon">Hackathon</option>
-                    </select>
-                    <input type="text" name="issuing_organization" placeholder="Issuing Organization" value={newAchievement.issuing_organization} onChange={handleNewAchievementChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white" />
-                    <input type="date" name="date_achieved" value={newAchievement.date_achieved} onChange={handleNewAchievementChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white" />
-                    <textarea name="description" placeholder="Description" value={newAchievement.description} onChange={handleNewAchievementChange} className="md:col-span-2 w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white"></textarea>
+                        <option value="award">Award</option>
+                    </SelectField>
+                    <InputField name="issuing_organization" placeholder="Issuing Organization" value={newAchievement.issuing_organization} onChange={handleNewAchievementChange} label=""/>
+                    <InputField type="date" name="date_achieved" value={newAchievement.date_achieved} onChange={handleNewAchievementChange} label="" />
+                    <div className="md:col-span-2"><TextAreaField name="description" placeholder="Description" value={newAchievement.description} onChange={handleNewAchievementChange} label="" /></div>
                     <div className="md:col-span-2 flex justify-end">
-                        <button type="button" onClick={handleAddAchievement} className="flex items-center gap-2 px-4 py-2 bg-nebula-purple text-white rounded-lg">
-                            <PlusIcon className="w-5 h-5" /> Add Achievement
-                        </button>
+                        <button type="button" onClick={handleAddAchievement} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"><PlusIcon className="w-5 h-5" /> Add</button>
                     </div>
                 </div>
-            </div>
+            </ProfileSection>
 
-            {/* Form Section: Online Presence */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-glass-border">
-                <div className="md:col-span-2">
-                    <h2 className="text-2xl font-semibold text-stellar-white">Online Presence</h2>
-                </div>
-                <div>
-                    <label htmlFor="linkedin_url" className="block text-sm font-medium text-gray-300 mb-2">LinkedIn URL</label>
-                    <input type="url" name="linkedin_url" id="linkedin_url" value={formData.linkedin_url || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" />
-                </div>
-                <div>
-                    <label htmlFor="github_url" className="block text-sm font-medium text-gray-300 mb-2">GitHub URL</label>
-                    <input type="url" name="github_url" id="github_url" value={formData.github_url || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" />
-                </div>
-                 <div className="md:col-span-2">
-                    <label htmlFor="portfolio_url" className="block text-sm font-medium text-gray-300 mb-2">Portfolio/Website URL</label>
-                    <input type="url" name="portfolio_url" id="portfolio_url" value={formData.portfolio_url || ''} onChange={handleInputChange} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-nebula-purple outline-none" />
-                </div>
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-end pt-6 border-t border-glass-border">
-                <motion.button
-                    type="submit"
-                    disabled={saving}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+            <div className="flex justify-end pt-8 border-t border-gray-200">
+                <motion.button type="submit" disabled={saving} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-full disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">
                     {saving ? 'Saving...' : 'Save Profile'}
                 </motion.button>
             </div>
@@ -490,3 +280,38 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({ navigate
     </div>
   );
 };
+
+const ProfileSection: React.FC<{icon: React.ReactNode, title: string, subtitle?: string, children: React.ReactNode}> = ({icon, title, subtitle, children}) => (
+    <div className="pt-8 border-t border-gray-200 first:pt-0 first:border-none">
+        <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-12 flex items-center justify-center bg-purple-100 border border-purple-200 rounded-xl text-purple-600">
+                {React.cloneElement(icon as React.ReactElement, { className: "w-7 h-7" })}
+            </div>
+            <div>
+                <h2 className="text-2xl font-semibold text-gray-900">{title}</h2>
+                {subtitle && <p className="text-gray-500 text-sm">{subtitle}</p>}
+            </div>
+        </div>
+        {children}
+    </div>
+);
+const InputField = ({ label, ...props }: {label: string} & React.InputHTMLAttributes<HTMLInputElement>) => (
+    <div>
+        {label && <label htmlFor={props.name} className="block text-sm font-medium text-gray-600 mb-2">{label}</label>}
+        <input {...props} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none transition-colors" />
+    </div>
+);
+const TextAreaField = ({ label, ...props }: {label: string} & React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+    <div>
+        {label && <label htmlFor={props.name} className="block text-sm font-medium text-gray-600 mb-2">{label}</label>}
+        <textarea {...props} rows={3} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none transition-colors" />
+    </div>
+);
+const SelectField = ({ label, children, ...props }: {label: string, children: React.ReactNode} & React.SelectHTMLAttributes<HTMLSelectElement>) => (
+    <div>
+        {label && <label htmlFor={props.name} className="block text-sm font-medium text-gray-600 mb-2">{label}</label>}
+        <select {...props} className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none appearance-none">
+            {children}
+        </select>
+    </div>
+);

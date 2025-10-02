@@ -9,6 +9,7 @@ import { AuthModal } from './components/auth/AuthModal';
 import { StudentProfilePage } from './components/profile/StudentProfilePage';
 import { OpportunitiesPage } from './components/opportunities/OpportunitiesPage';
 import { ApplicationTrackerPage } from './components/applications/ApplicationTrackerPage';
+import { ProtectedRoute } from './components/auth/ProtectedRoute'; // Import ProtectedRoute
 
 function App() {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ function App() {
         <Navbar navigateTo={navigateTo} />
         <main className="pt-16">
           <Routes>
-            {/* Public Routes */}
+            {/* Public Route */}
             <Route
               path="/"
               element={
@@ -61,50 +62,13 @@ function App() {
               }
             />
 
-            {/* Protected Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                user ? (
-                  <StudentDashboard navigateTo={navigateTo} />
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
-
-            <Route
-              path="/profile"
-              element={
-                user ? (
-                  <StudentProfilePage navigateTo={navigateTo} />
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
-
-            <Route
-              path="/opportunities"
-              element={
-                user ? (
-                  <OpportunitiesPage />
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
-            
-            <Route
-              path="/applications"
-              element={
-                user ? (
-                  <ApplicationTrackerPage />
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
+            {/* Protected Routes Group */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/dashboard" element={<StudentDashboard />} />
+              <Route path="/profile" element={<StudentProfilePage navigateTo={navigateTo} />} />
+              <Route path="/opportunities" element={<OpportunitiesPage />} />
+              <Route path="/applications" element={<ApplicationTrackerPage />} />
+            </Route>
 
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" replace />} />

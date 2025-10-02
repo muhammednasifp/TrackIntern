@@ -33,6 +33,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
         email: '', password: '', confirmPassword: '', 
         userType: 'student', acceptTerms: false
       });
+      setShowPassword(false); // Also reset password visibility
     }
   }, [isOpen, mode]);
 
@@ -104,16 +105,58 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
     signup: ['email', 'userType', 'password', 'confirmPassword', 'acceptTerms']
   };
   const currentSteps = stepsConfig[mode];
-  const progress = ((step) / (currentSteps.length)) * 100;
+  // Fixed: Progress calculation should use (step + 1) to show proper progress
+  const progress = ((step + 1) / currentSteps.length) * 100;
 
   const handleNext = () => {
     const currentField = currentSteps[step];
-    if (formData[currentField as keyof typeof formData] === '') {
-        toast.error('Please fill in this field.');
+    
+    // Fixed: Better validation for different field types
+    if (currentField === 'acceptTerms') {
+      if (!formData.acceptTerms) {
+        toast.error('Please accept the terms and conditions');
         return;
+      }
+    } else if (currentField === 'email') {
+      if (!formData.email) {
+        toast.error('Please enter your email');
+        return;
+      }
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        toast.error('Please enter a valid email address');
+        return;
+      }
+    } else if (currentField === 'password') {
+      if (!formData.password) {
+        toast.error('Please enter your password');
+        return;
+      }
+      if (mode === 'signup' && formData.password.length < 6) {
+        toast.error('Password must be at least 6 characters');
+        return;
+      }
+    } else if (currentField === 'confirmPassword') {
+      if (!formData.confirmPassword) {
+        toast.error('Please confirm your password');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        toast.error('Passwords do not match');
+        return;
+      }
     }
-    if (step < currentSteps.length) {
+    
+    // Fixed: Check should be (step < currentSteps.length - 1)
+    if (step < currentSteps.length - 1) {
       setStep(step + 1);
+    } else {
+      // If we're at the last step, submit the form
+      const form = document.getElementById('auth-form') as HTMLFormElement;
+      if (form) {
+        form.requestSubmit();
+      }
     }
   };
   
@@ -122,6 +165,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
       type="button"
       onClick={handleNext}
       whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.95 }}
       className="flex-shrink-0 bg-white/20 text-white w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors hover:bg-white/30"
     >
       <ArrowRightIcon className="w-6 h-6" />
@@ -159,22 +203,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
                       {mode === 'signin' ? 'Sign in to continue your journey.' : 'Create an account to get started.'}
                     </p>
                 
-                    <form onSubmit={handleFormSubmit} className="min-h-[6rem] flex flex-col justify-center">
+                    <form id="auth-form" onSubmit={handleFormSubmit} className="min-h-[6rem] flex flex-col justify-center">
                         <AnimatePresence mode="wait">
                         {step === 0 && (
                             <motion.div key="email" {...fieldAnimation}>
-                                <label htmlFor="email" className="font-medium text-white/80">Email Address</label>
+                                <label htmlFor="email" className="text-sm font-medium text-white/80">Email Address</label>
                                 <div className="flex items-center gap-3 mt-2">
-                                    <input type="email" name="email" required value={formData.email} onChange={handleInputChange} className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Enter your email" />
+                                    <input 
+                                      type="email" 
+                                      name="email" 
+                                      id="email"
+                                      required 
+                                      value={formData.email} 
+                                      onChange={handleInputChange} 
+                                      className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" 
+                                      placeholder="Enter your email" 
+                                    />
                                     <NextButton />
                                 </div>
                             </motion.div>
                         )}
                         {mode === 'signup' && step === 1 && (
                             <motion.div key="userType" {...fieldAnimation}>
-                                <label htmlFor="userType" className="font-medium text-white/80">I am a...</label>
+                                <label htmlFor="userType" className="text-sm font-medium text-white/80">I am a...</label>
                                 <div className="flex items-center gap-3 mt-2">
-                                    <select name="userType" value={formData.userType} onChange={handleInputChange} className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50">
+                                    <select 
+                                      name="userType" 
+                                      id="userType"
+                                      value={formData.userType} 
+                                      onChange={handleInputChange} 
+                                      className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50"
+                                    >
                                         <option value="student" style={{backgroundColor: '#581c87'}}>Student</option>
                                         <option value="company" style={{backgroundColor: '#581c87'}}>Company</option>
                                     </select>
@@ -184,23 +243,57 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
                         )}
                         {((mode === 'signup' && step === 2) || (mode === 'signin' && step === 1)) && (
                             <motion.div key="password" {...fieldAnimation}>
-                                <label htmlFor="password" className="font-medium text-white/80">Password</label>
+                                <label htmlFor="password" className="text-sm font-medium text-white/80">Password</label>
                                 <div className="flex items-center gap-3 mt-2">
                                     <div className="relative flex-grow">
-                                        <input type={showPassword ? 'text' : 'password'} name="password" required value={formData.password} onChange={handleInputChange} className="w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Enter your password" />
-                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50">
-                                        {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                                        <input 
+                                          type={showPassword ? 'text' : 'password'} 
+                                          name="password" 
+                                          id="password"
+                                          required 
+                                          value={formData.password} 
+                                          onChange={handleInputChange} 
+                                          className="w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" 
+                                          placeholder="Enter your password" 
+                                        />
+                                        <button 
+                                          type="button" 
+                                          onClick={() => setShowPassword(!showPassword)} 
+                                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/70 transition-colors"
+                                        >
+                                          {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                                         </button>
                                     </div>
-                                    <NextButton />
+                                    {mode === 'signin' && step === 1 ? (
+                                      <motion.button 
+                                        type="submit" 
+                                        disabled={loading}
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="flex-shrink-0 bg-white/20 text-white w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors hover:bg-white/30 disabled:opacity-50"
+                                      >
+                                        <ArrowRightIcon className="w-6 h-6" />
+                                      </motion.button>
+                                    ) : (
+                                      <NextButton />
+                                    )}
                                 </div>
                             </motion.div>
                         )}
                         {mode === 'signup' && step === 3 && (
                             <motion.div key="confirmPassword" {...fieldAnimation}>
-                                <label htmlFor="confirmPassword" className="font-medium text-white/80">Confirm Password</label>
+                                <label htmlFor="confirmPassword" className="text-sm font-medium text-white/80">Confirm Password</label>
                                 <div className="flex items-center gap-3 mt-2">
-                                    <input type="password" name="confirmPassword" required value={formData.confirmPassword} onChange={handleInputChange} className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" placeholder="Confirm your password" />
+                                    <input 
+                                      type="password" 
+                                      name="confirmPassword" 
+                                      id="confirmPassword"
+                                      required 
+                                      value={formData.confirmPassword} 
+                                      onChange={handleInputChange} 
+                                      className="flex-grow w-full px-4 py-3 bg-white/10 text-white border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-white/50" 
+                                      placeholder="Confirm your password" 
+                                    />
                                     <NextButton />
                                 </div>
                             </motion.div>
@@ -209,18 +302,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
                             <motion.div key="acceptTerms" {...fieldAnimation}>
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center space-x-3">
-                                        <input type="checkbox" id="acceptTerms" name="acceptTerms" checked={formData.acceptTerms} onChange={handleInputChange} className="h-5 w-5 text-blue-400 bg-white/10 border-white/20 focus:ring-blue-500 rounded" />
-                                        <label htmlFor="acceptTerms" className="text-sm text-white/80">I accept the <a href="#" className="text-white hover:underline">Terms and Conditions</a></label>
+                                        <input 
+                                          type="checkbox" 
+                                          id="acceptTerms" 
+                                          name="acceptTerms" 
+                                          checked={formData.acceptTerms} 
+                                          onChange={handleInputChange} 
+                                          className="h-5 w-5 text-blue-400 bg-white/10 border-white/20 focus:ring-blue-500 rounded" 
+                                        />
+                                        <label htmlFor="acceptTerms" className="text-sm text-white/80">
+                                          I accept the <a href="#" className="text-white hover:underline">Terms and Conditions</a>
+                                        </label>
                                     </div>
-                                    <NextButton />
+                                    <motion.button 
+                                      type="submit" 
+                                      disabled={loading || !formData.acceptTerms}
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      className="flex-shrink-0 bg-white/20 text-white w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors hover:bg-white/30 disabled:opacity-50"
+                                    >
+                                      <ArrowRightIcon className="w-6 h-6" />
+                                    </motion.button>
                                 </div>
-                            </motion.div>
-                        )}
-                        {step === currentSteps.length && (
-                            <motion.div key="submit" {...fieldAnimation} className="mt-2">
-                                <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} className="w-full bg-white/90 text-purple-700 font-bold py-3 rounded-lg hover:shadow-lg disabled:opacity-50">
-                                    {loading ? 'Processing...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
-                                </motion.button>
                             </motion.div>
                         )}
                         </AnimatePresence>
@@ -228,13 +331,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onS
 
                     <div className="mt-8">
                         <div className="w-full bg-white/20 rounded-full h-1.5 mb-4">
-                            <motion.div className="bg-white h-1.5 rounded-full" animate={{ width: `${progress}%` }} />
+                            <motion.div 
+                              className="bg-white h-1.5 rounded-full" 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${progress}%` }} 
+                              transition={{ duration: 0.3 }}
+                            />
                         </div>
                         <div className="text-center text-sm text-white/70">
-                        {mode === 'signin' ? "Don't have an account? " : "Already have an account? "}
-                        <button type="button" onClick={() => onSwitchMode(mode === 'signin' ? 'signup' : 'signin')} className="text-white hover:underline font-bold">
+                          {mode === 'signin' ? "Don't have an account? " : "Already have an account? "}
+                          <button 
+                            type="button" 
+                            onClick={() => onSwitchMode(mode === 'signin' ? 'signup' : 'signin')} 
+                            className="text-white hover:underline font-bold"
+                          >
                             {mode === 'signin' ? 'Sign Up' : 'Sign In'}
-                        </button>
+                          </button>
                         </div>
                     </div>
                 </div>
