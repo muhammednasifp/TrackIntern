@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Navbar } from './components/layout/Navbar';
+import { BackgroundWrapper } from './components/layout/BackgroundWrapper';
 import { HeroSection } from './components/landing/HeroSection';
 import { StudentDashboard } from './components/dashboard/StudentDashboard';
 import { useAuthStore } from './stores/authStore';
@@ -38,46 +39,50 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading TrackIntern...</p>
+      <BackgroundWrapper>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading TrackIntern...</p>
+          </div>
         </div>
-      </div>
+      </BackgroundWrapper>
     );
   }
 
   return (
     <>
-      <div className="min-h-screen bg-gray-50">
-        <Navbar navigateTo={navigateTo} theme={getNavbarTheme()} />
-        <main>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                user ? (
-                  <Navigate to="/dashboard" replace />
-                ) : (
-                  <HeroSection
-                    onLoginClick={() => openAuth('signin')}
-                    onGetStartedClick={() => openAuth('signup')}
-                  />
-                )
-              }
-            />
+      <BackgroundWrapper>
+        <div className="min-h-screen">
+          <Navbar navigateTo={navigateTo} theme={getNavbarTheme()} />
+          <main>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <HeroSection
+                      onLoginClick={() => openAuth('signin')}
+                      onGetStartedClick={() => openAuth('signup')}
+                    />
+                  )
+                }
+              />
 
-            <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<StudentDashboard navigateTo={navigateTo} />} />
-              <Route path="/profile" element={<StudentProfilePage navigateTo={navigateTo} />} />
-              <Route path="/opportunities" element={<OpportunitiesPage />} />
-              <Route path="/applications" element={<ApplicationTrackerPage />} />
-            </Route>
+              <Route element={<ProtectedRoute />}>
+                <Route path="/dashboard" element={<StudentDashboard navigateTo={navigateTo} />} />
+                <Route path="/profile" element={<StudentProfilePage navigateTo={navigateTo} />} />
+                <Route path="/opportunities" element={<OpportunitiesPage />} />
+                <Route path="/applications" element={<ApplicationTrackerPage />} />
+              </Route>
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      </div>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+        </div>
+      </BackgroundWrapper>
 
       <AuthModal
         isOpen={showAuthModal}

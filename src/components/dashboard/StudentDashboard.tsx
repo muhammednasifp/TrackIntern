@@ -314,7 +314,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 p-4 sm:p-8">
+    <div className="min-h-screen text-gray-800 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-4xl font-bold mb-2">
