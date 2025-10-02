@@ -57,12 +57,24 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
     }
   };
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = (event: React.MouseEvent) => {
+    // Check if we're moving to a dropdown
+    const relatedTarget = event.relatedTarget as HTMLElement;
+    if (relatedTarget && (
+      relatedTarget.closest('[data-dropdown="profile"]') ||
+      relatedTarget.closest('[data-dropdown="notifications"]')
+    )) {
+      return; // Don't collapse if moving to dropdown
+    }
+
     // When the mouse leaves, start a timer to collapse the nav.
     // This gives the user time to move their cursor to a dropdown menu.
     collapseTimeoutRef.current = setTimeout(() => {
-      setIsExpanded(false);
-    }, 300); // Increased delay for better usability
+      // Double check that no dropdowns are open before collapsing
+      if (!isProfileOpen) {
+        setIsExpanded(false);
+      }
+    }, 500); // Increased delay for better usability
   };
 
 
@@ -161,8 +173,22 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.25 }}
+                  onMouseEnter={() => {
+                    if (collapseTimeoutRef.current) {
+                      clearTimeout(collapseTimeoutRef.current);
+                    }
+                    setIsExpanded(true);
+                  }}
                 >
-                  <NotificationDropdown theme={theme} />
+                  <NotificationDropdown 
+                    theme={theme} 
+                    onKeepExpanded={() => {
+                      if (collapseTimeoutRef.current) {
+                        clearTimeout(collapseTimeoutRef.current);
+                      }
+                      setIsExpanded(true);
+                    }}
+                  />
                 </motion.div>
 
                 <motion.div 
@@ -171,9 +197,22 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
                   transition={{ delay: 0.3 }}
                   className="relative" 
                   ref={profileRef}
+                  onMouseEnter={() => {
+                    if (collapseTimeoutRef.current) {
+                      clearTimeout(collapseTimeoutRef.current);
+                    }
+                    setIsExpanded(true);
+                  }}
                 >
                   <motion.button 
-                    onClick={() => setIsProfileOpen(!isProfileOpen)} 
+                    onClick={() => {
+                      setIsProfileOpen(!isProfileOpen);
+                      // Keep navbar expanded when profile dropdown is open
+                      if (collapseTimeoutRef.current) {
+                        clearTimeout(collapseTimeoutRef.current);
+                      }
+                      setIsExpanded(true);
+                    }} 
                     whileHover={{ scale: 1.1 }} 
                     whileTap={{ scale: 0.95 }}
                     className="p-1"
@@ -188,6 +227,18 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         className={`absolute right-0 mt-2 w-48 rounded-lg shadow-xl border z-[10000] ${dropdownStyles}`}
                         data-dropdown="profile"
+                        onMouseEnter={() => {
+                          if (collapseTimeoutRef.current) {
+                            clearTimeout(collapseTimeoutRef.current);
+                          }
+                          setIsExpanded(true);
+                        }}
+                        onMouseLeave={() => {
+                          collapseTimeoutRef.current = setTimeout(() => {
+                            setIsExpanded(false);
+                            setIsProfileOpen(false);
+                          }, 300);
+                        }}
                       >
                         <div className="p-2">
                           <button

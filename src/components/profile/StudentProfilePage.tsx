@@ -155,7 +155,17 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value, type } = e.target;
+    let processedValue: any = value;
+
+    // Handle different input types
+    if (type === 'number') {
+      processedValue = value === '' ? null : parseFloat(value);
+    } else if (name === 'year_of_study') {
+      processedValue = value === '' ? null : parseInt(value);
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: processedValue }));
   };
 
   const handleSkillToggle = (skillName: string) => {
@@ -235,47 +245,104 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return toast.error("You must be logged in.");
+    
     setSaving(true);
     const toastId = toast.loading("Saving profile...");
+    
     try {
+      // Validate and clean the form data
+      const cleanedFormData = {
+        ...formData,
+        // Ensure year_of_study is a number
+        year_of_study: formData.year_of_study ? parseInt(formData.year_of_study.toString()) : null,
+        // Ensure cgpa is a number or null
+        cgpa: formData.cgpa && formData.cgpa !== '' ? parseFloat(formData.cgpa.toString()) : null,
+        // Ensure skills is an array
+        skills: Array.isArray(formData.skills) ? formData.skills : [],
+        // Clean up empty strings
+        college_name: formData.college_name?.trim() || null,
+        course: formData.course?.trim() || null,
+        specialization: formData.specialization?.trim() || null,
+        linkedin_url: formData.linkedin_url?.trim() || null,
+        github_url: formData.github_url?.trim() || null,
+        portfolio_url: formData.portfolio_url?.trim() || null,
+        bio: formData.bio?.trim() || null,
+      };
+
+      console.log("Cleaned form data:", cleanedFormData);
+
       let finalResumeUrl = resumeUrl;
       let currentStudentId = studentId;
-      const profilePayload = {
-        ...formData,
-        user_id: user.id,
-        updated_at: new Date().toISOString(),
-      };
+
+      // Ensure we have a student record
       if (!currentStudentId) {
+        console.log("Creating new student record...");
         const { data: newStudent, error: insertError } = await supabase
           .from("students")
-          .insert({ user_id: user.id, full_name: profilePayload.full_name })
+          .insert({ 
+            user_id: user.id, 
+            full_name: cleanedFormData.full_name || user.user_metadata?.full_name || 'Student',
+            profile_strength: 10
+          })
           .select()
           .single();
-        if (insertError) throw insertError;
+        
+        if (insertError) {
+          console.error("Insert error:", insertError);
+          throw insertError;
+        }
+        
         currentStudentId = newStudent.student_id;
         setStudentId(currentStudentId);
+        console.log("Created student with ID:", currentStudentId);
       }
+
+      // Handle resume upload
       if (resumeFile && currentStudentId) {
-        finalResumeUrl =
-          (await uploadResume(resumeFile, currentStudentId)) || resumeUrl;
+        console.log("Uploading resume...");
+        finalResumeUrl = (await uploadResume(resumeFile, currentStudentId)) || resumeUrl;
         setResumeUrl(finalResumeUrl);
       }
+
+      // Prepare final payload for update
       const finalPayload = {
-        ...profilePayload,
+        ...cleanedFormData,
         resume_url: finalResumeUrl,
         profile_strength: profileStrength,
+        updated_at: new Date().toISOString(),
       };
+
+      // Remove undefined values and user_id (not needed for update)
+      Object.keys(finalPayload).forEach(key => {
+        if (finalPayload[key] === undefined) {
+          delete finalPayload[key];
+        }
+      });
+      delete finalPayload.user_id; // Remove user_id from update payload
+
+      console.log("Final payload for update:", finalPayload);
+
+      // Update the student record
       const { error: updateError } = await supabase
         .from("students")
         .update(finalPayload)
         .eq("student_id", currentStudentId);
-      if (updateError) throw updateError;
+
+      if (updateError) {
+        console.error("Update error:", updateError);
+        throw updateError;
+      }
+
       toast.success("Profile saved successfully!", { id: toastId });
-      fetchProfile();
+      await fetchProfile(); // Refresh the profile data
+      
     } catch (err: unknown) {
+      console.error("Profile save error:", err);
       if (err instanceof Error) {
+        console.error("Error details:", err.message, err.stack);
         toast.error("Error saving profile: " + err.message, { id: toastId });
       } else {
+        console.error("Unknown error:", err);
         toast.error("An unexpected error occurred while saving the profile.", {
           id: toastId,
         });
@@ -614,14 +681,18 @@ const InputField = ({
     {label && (
       <label
         htmlFor={props.name}
-        className="block text-sm font-medium text-gray-600 mb-2"
+        className="block text-sm font-medium text-gray-700 mb-2"
       >
         {label}
       </label>
     )}
     <input
       {...props}
-      className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none transition-colors"
+      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-colors shadow-sm hover:border-gray-400 autofill:bg-white autofill:text-gray-900"
+      style={{
+        WebkitTextFillColor: '#111827', // Force dark text color
+        WebkitBoxShadow: '0 0 0px 1000px white inset', // Force white background
+      }}
     />
   </div>
 );
@@ -633,7 +704,7 @@ const TextAreaField = ({
     {label && (
       <label
         htmlFor={props.name}
-        className="block text-sm font-medium text-gray-600 mb-2"
+        className="block text-sm font-medium text-gray-700 mb-2"
       >
         {label}
       </label>
@@ -641,7 +712,11 @@ const TextAreaField = ({
     <textarea
       {...props}
       rows={3}
-      className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none transition-colors"
+      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-colors shadow-sm hover:border-gray-400 resize-vertical autofill:bg-white autofill:text-gray-900"
+      style={{
+        WebkitTextFillColor: '#111827', // Force dark text color
+        WebkitBoxShadow: '0 0 0px 1000px white inset', // Force white background
+      }}
     />
   </div>
 );
@@ -657,16 +732,23 @@ const SelectField = ({
     {label && (
       <label
         htmlFor={props.name}
-        className="block text-sm font-medium text-gray-600 mb-2"
+        className="block text-sm font-medium text-gray-700 mb-2"
       >
         {label}
       </label>
     )}
-    <select
-      {...props}
-      className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none appearance-none"
-    >
-      {children}
-    </select>
+    <div className="relative">
+      <select
+        {...props}
+        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none appearance-none cursor-pointer shadow-sm hover:border-gray-400 transition-colors"
+      >
+        {children}
+      </select>
+      <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+    </div>
   </div>
 );

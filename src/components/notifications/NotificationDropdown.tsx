@@ -7,9 +7,10 @@ import { NotificationItem } from './NotificationItem';
 
 interface NotificationDropdownProps {
   theme?: 'light' | 'dark';
+  onKeepExpanded?: () => void;
 }
 
-export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ theme = 'light' }) => {
+export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ theme = 'light', onKeepExpanded }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -71,6 +72,10 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ them
                 : 'bg-white/95 border-gray-200/50'
             }`}
             data-dropdown="notifications"
+            onMouseEnter={() => onKeepExpanded?.()}
+            onMouseLeave={() => {
+              setTimeout(() => setIsOpen(false), 300);
+            }}
           >
             <div className={`p-4 border-b ${theme === 'dark' ? 'border-slate-600/50' : 'border-gray-200/50'}`}>
               <div className="flex items-center justify-between">
