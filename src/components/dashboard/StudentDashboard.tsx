@@ -27,13 +27,13 @@ interface RecentActivity {
   status_updated_at: string;
 }
 
-interface ActivityData {
+interface FetchedActivity {
   application_id: string;
   status: string;
   status_updated_at: string;
   opportunities: {
     title: string;
-  };
+  } | null;
 }
 
 interface StudentDashboardProps {
@@ -106,18 +106,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
           `)
           .eq('student_id', studentId)
           .order('status_updated_at', { ascending: false })
-          .limit(5);
+          .limit(5)
+          .returns<FetchedActivity[]>();
 
         if (activityError) throw activityError;
 
-        // ✅ Fixed mapping with null safety
-        const formattedActivity: RecentActivity[] =
-          (activityData as ActivityData[] | null)?.map(item => ({
-            application_id: item.application_id,
-            title: item.opportunities?.title || 'Unknown Opportunity',
-            status: item.status,
-            status_updated_at: item.status_updated_at,
-          })) ?? [];
+        const formattedActivity: RecentActivity[] = activityData
+          ? activityData.map(item => ({
+              application_id: item.application_id,
+              title: item.opportunities?.title || 'Unknown Opportunity',
+              status: item.status,
+              status_updated_at: item.status_updated_at,
+            }))
+          : [];
 
         setRecentActivity(formattedActivity);
 
