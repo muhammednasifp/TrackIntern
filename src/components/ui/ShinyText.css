@@ -1,0 +1,28 @@
+.shiny-text {
+  background: linear-gradient(
+    120deg,
+    #374151 40%,
+    #9333ea 50%, /* Purple shine effect */
+    #374151 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  display: inline-block;
+  animation: shine 5s linear infinite;
+}
+
+@keyframes shine {
+  0% {
+    background-position: 100%;
+  }
+  100% {
+    background-position: -100%;
+  }
+}
+
+.shiny-text.disabled {
+  animation: none;
+}

@@ -15,6 +15,13 @@ interface StudentProfile {
   student_id: string;
   full_name: string;
   profile_strength: number;
+  bio?: string;
+  skills?: string[];
+  resume_url?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  college_name?: string;
+  course?: string;
 }
 
 interface AuthState {
@@ -40,20 +47,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user) return;
 
     try {
+      // First, ensure we have a valid session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        console.error('No valid session found:', sessionError);
+        set({ profile: null, studentId: null });
+        return;
+      }
+
       const { data, error } = await supabase
         .from('students')
-        .select('student_id, full_name, profile_strength')
+        .select('student_id, full_name, profile_strength, bio, skills, resume_url, linkedin_url, github_url, college_name, course')
         .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') { // Handle cases other than "no rows found"
+        console.error('Error fetching profile:', error);
         throw error;
       }
 
       if (data) {
         set({ profile: data, studentId: data.student_id });
       } else {
-        set({ profile: null, studentId: null });
+        // If no profile exists, create one
+        const { data: newProfile, error: insertError } = await supabase
+          .from('students')
+          .insert([{
+            user_id: user.id,
+            full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Student',
+            profile_strength: 10
+          }])
+          .select('student_id, full_name, profile_strength, bio, skills, resume_url, linkedin_url, github_url, college_name, course')
+          .single();
+
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+          set({ profile: null, studentId: null });
+        } else {
+          set({ profile: newProfile, studentId: newProfile.student_id });
+        }
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);

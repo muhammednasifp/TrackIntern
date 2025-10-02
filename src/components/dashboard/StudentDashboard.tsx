@@ -3,6 +3,7 @@ import { motion, animate } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import toast from 'react-hot-toast';
+import ShinyText from '../ui/ShinyText';
 import { 
   ArrowUpRightIcon, 
   BriefcaseIcon, 
@@ -317,7 +318,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
       <div className="max-w-7xl mx-auto">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-4xl font-bold mb-2">
-            Welcome, {displayName}
+            <ShinyText 
+              text={`Welcome, ${displayName}`}
+              speed={3}
+              className="text-4xl font-bold text-gray-900"
+            />
           </h1>
           <p className="text-lg text-gray-600 mb-8">Here's your job search at a glance.</p>
         </motion.div>
@@ -562,8 +567,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
           animate="visible"
           className="mt-12 bg-white border border-gray-200/80 rounded-2xl p-8 shadow-sm"
         >
-          <h2 className="text-2xl font-semibold mb-6 text-center">Your Application Pipeline</h2>
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold mb-8 text-center">Your Application Pipeline</h2>
+          
+          {/* Desktop Layout with Integrated Arrows */}
+          <div className="hidden md:flex items-center justify-center">
             {[
               { label: 'Submitted', status: ['submitted'], color: 'bg-blue-500', textColor: 'text-blue-700' },
               { label: 'Under Review', status: ['under_review'], color: 'bg-yellow-500', textColor: 'text-yellow-700' },
@@ -577,67 +584,123 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
                                stats.find(s => s.name === 'Offers')?.value || 0;
               
               return (
-                <motion.div
-                  key={stage.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  className="flex flex-col items-center p-4 rounded-xl border border-gray-100 hover:shadow-md transition-all cursor-pointer min-w-[120px]"
-                >
-                  <div className={`w-16 h-16 ${stage.color} rounded-full flex items-center justify-center mb-3 shadow-lg`}>
-                    <Counter 
-                      from={0} 
-                      to={stageCount} 
-                      duration={1 + index * 0.2}
-                      className="text-2xl font-bold text-white"
-                    />
-                  </div>
-                  <h3 className={`font-semibold ${stage.textColor} mb-1`}>{stage.label}</h3>
-                  <p className="text-xs text-gray-500 text-center">
-                    {stageCount === 1 ? '1 application' : `${stageCount} applications`}
-                  </p>
-                </motion.div>
+                <React.Fragment key={stage.label}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.05, y: -5 }}
+                    className="flex flex-col items-center p-4 rounded-xl border border-gray-100 hover:shadow-md transition-all cursor-pointer min-w-[140px]"
+                  >
+                    <div className={`w-16 h-16 ${stage.color} rounded-full flex items-center justify-center mb-3 shadow-lg`}>
+                      <Counter 
+                        from={0} 
+                        to={stageCount} 
+                        duration={1 + index * 0.2}
+                        className="text-2xl font-bold text-white"
+                      />
+                    </div>
+                    <h3 className={`font-semibold ${stage.textColor} mb-1`}>{stage.label}</h3>
+                    <p className="text-xs text-gray-500 text-center">
+                      {stageCount === 1 ? '1 application' : `${stageCount} applications`}
+                    </p>
+                  </motion.div>
+                  
+                  {/* Arrow between stages (not after the last one) */}
+                  {index < 3 && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.5 + index * 0.1 }}
+                      className="mx-4 flex items-center"
+                    >
+                      <svg 
+                        className="w-8 h-8 text-gray-400" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M13 7l5 5m0 0l-5 5m5-5H6" 
+                        />
+                      </svg>
+                    </motion.div>
+                  )}
+                </React.Fragment>
               );
             })}
           </div>
-          
-          {/* Pipeline Flow Arrows */}
-          <div className="hidden md:flex justify-center mt-6">
-            <div className="flex items-center space-x-8">
-              {[1, 2, 3].map((i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.5 + i * 0.1 }}
-                >
-                  <ArrowUpRightIcon className="w-6 h-6 text-gray-300 rotate-90" />
-                </motion.div>
-              ))}
-            </div>
+
+          {/* Mobile Layout - Vertical Stack */}
+          <div className="md:hidden space-y-6">
+            {[
+              { label: 'Submitted', status: ['submitted'], color: 'bg-blue-500', textColor: 'text-blue-700' },
+              { label: 'Under Review', status: ['under_review'], color: 'bg-yellow-500', textColor: 'text-yellow-700' },
+              { label: 'Interview', status: ['interview_scheduled', 'interviewed'], color: 'bg-purple-500', textColor: 'text-purple-700' },
+              { label: 'Offer', status: ['selected', 'offer_sent', 'hired'], color: 'bg-green-500', textColor: 'text-green-700' }
+            ].map((stage, index) => {
+              const count = stats.find(s => s.name === 'Total Applications')?.value || 0;
+              const stageCount = stage.status.includes('submitted') ? count :
+                               stage.status.includes('under_review') ? Math.max(0, Math.floor(count * 0.4)) :
+                               stage.status.includes('interview_scheduled') ? stats.find(s => s.name === 'Interviews')?.value || 0 :
+                               stats.find(s => s.name === 'Offers')?.value || 0;
+              
+              return (
+                <React.Fragment key={`mobile-${stage.label}`}>
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center p-4 rounded-xl border border-gray-100 hover:shadow-md transition-all"
+                  >
+                    <div className={`w-14 h-14 ${stage.color} rounded-full flex items-center justify-center mr-4 shadow-lg`}>
+                      <Counter 
+                        from={0} 
+                        to={stageCount} 
+                        duration={1 + index * 0.2}
+                        className="text-xl font-bold text-white"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`font-semibold ${stage.textColor} mb-1`}>{stage.label}</h3>
+                      <p className="text-sm text-gray-500">
+                        {stageCount === 1 ? '1 application' : `${stageCount} applications`}
+                      </p>
+                    </div>
+                  </motion.div>
+                  
+                  {/* Vertical arrow for mobile */}
+                  {index < 3 && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 + index * 0.1 }}
+                      className="flex justify-center"
+                    >
+                      <svg 
+                        className="w-6 h-6 text-gray-400" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M7 13l5 5m0 0l5-5m-5 5V6" 
+                        />
+                      </svg>
+                    </motion.div>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         </motion.div>
 
-        {/* CTA Section */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-lg"
-        >
-          <div>
-            <h2 className="text-2xl font-bold text-white">Ready to find your dream internship?</h2>
-            <p className="text-purple-200 mt-1">Browse hundreds of opportunities from top companies.</p>
-          </div>
-          <button
-            onClick={() => navigateTo('/opportunities')}
-            className="px-6 py-3 bg-white text-purple-700 font-bold rounded-full flex items-center gap-2 whitespace-nowrap hover:scale-105 transition-transform shadow"
-          >
-            Browse Opportunities
-            <ArrowUpRightIcon className="w-5 h-5" />
-          </button>
-        </motion.div>
       </div>
     </div>
   );
