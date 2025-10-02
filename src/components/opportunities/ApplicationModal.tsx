@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import slugify from 'slugify';
 import {
   XMarkIcon,
   ArrowLeftIcon,
@@ -66,8 +67,20 @@ const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_FILES = 3;
 
 const sanitizeFilename = (fileName: string) => {
-  const name = fileName.normalize('NFKD').replace(/[^\w.\- ]+/g, '');
-  return name.replace(/\s+/g, '-');
+  const name = fileName.substring(0, fileName.lastIndexOf('.'));
+  const extension = fileName.substring(fileName.lastIndexOf('.'));
+  
+  // Use slugify for secure filename sanitization
+  const sanitizedName = slugify(name, { 
+    lower: true, 
+    strict: true,
+    remove: /[*+~.()'"!:@]/g // Remove potentially dangerous characters
+  });
+  
+  // Generate a unique ID to prevent conflicts and enhance security
+  const uniqueId = Math.random().toString(36).substring(2, 15);
+  
+  return `${sanitizedName}-${uniqueId}${extension}`;
 };
 
 export const ApplicationModal: React.FC<ApplicationModalProps> = ({
@@ -272,18 +285,43 @@ export const ApplicationModal: React.FC<ApplicationModalProps> = ({
   };
 
   const removeFile = async (file: UploadedFileMeta) => {
-    const toastId = toast.loading(`Removing ${file.name}...`);
-    const { error } = await supabase.storage.from('application-documents').remove([file.path]);
-    if (error) {
-      toast.error(`Could not remove ${file.name}: ${error.message}`, { id: toastId });
+    // Validate user authorization before deletion
+    if (!user || !studentId) {
+      toast.error('You must be logged in to delete files');
       return;
     }
-    setUploadedFiles((prev) => prev.filter((item) => item.path !== file.path));
-    setFormData((prev) => ({
-      ...prev,
-      additionalDocuments: prev.additionalDocuments.filter((url) => url !== file.url),
-    }));
-    toast.success(`${file.name} removed`, { id: toastId });
+
+    // Verify the file path belongs to the current user to prevent unauthorized deletion
+    const expectedPathPrefix = `${user.id}/${opportunityId}/`;
+    if (!file.path.startsWith(expectedPathPrefix)) {
+      toast.error('Unauthorized: You can only delete your own files');
+      console.error('Unauthorized file deletion attempt:', { 
+        userId: user.id, 
+        filePath: file.path, 
+        expectedPrefix: expectedPathPrefix 
+      });
+      return;
+    }
+
+    const toastId = toast.loading(`Removing ${file.name}...`);
+    
+    try {
+      const { error } = await supabase.storage.from('application-documents').remove([file.path]);
+      if (error) {
+        toast.error(`Could not remove ${file.name}: ${error.message}`, { id: toastId });
+        return;
+      }
+      
+      setUploadedFiles((prev) => prev.filter((item) => item.path !== file.path));
+      setFormData((prev) => ({
+        ...prev,
+        additionalDocuments: prev.additionalDocuments.filter((url) => url !== file.url),
+      }));
+      toast.success(`${file.name} removed`, { id: toastId });
+    } catch (err) {
+      console.error('Error removing file:', err);
+      toast.error('An unexpected error occurred while removing the file', { id: toastId });
+    }
   };
 
   const handleSubmit = async () => {

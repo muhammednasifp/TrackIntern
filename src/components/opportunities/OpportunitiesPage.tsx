@@ -152,50 +152,57 @@ export const OpportunitiesPage: React.FC = () => {
     const serverType = activeTab === 'internships' ? 'internship' : 'placement';
 
     try {
-      const { data, error } = await supabase
+      // Build query with server-side filtering
+      let query = supabase
         .from('opportunities')
         .select(`
-          opportunity_id, 
-          title, 
-          type, 
-          category, 
-          domain, 
-          stipend_min, 
+          opportunity_id,
+          title,
+          type,
+          category,
+          domain,
+          stipend_min,
           stipend_max,
-          ctc_min, 
-          ctc_max, 
-          currency, 
-          duration_months, 
-          work_mode, 
+          ctc_min,
+          ctc_max,
+          currency,
+          duration_months,
+          work_mode,
           location,
-          application_deadline, 
+          application_deadline,
           created_at,
-          company_id
+          companies (
+            company_name,
+            brand_logo_url
+          )
         `)
         .eq('status', 'active')
         .eq('type', serverType);
+
+      // Apply server-side search filtering
+      if (debouncedSearch.trim()) {
+        // Search in title, company name, and domain
+        query = query.or(`title.ilike.%${debouncedSearch}%,domain.ilike.%${debouncedSearch}%,companies.company_name.ilike.%${debouncedSearch}%`);
+      }
+
+      // Apply server-side work mode filtering
+      if (filters.workMode) {
+        query = query.eq('work_mode', filters.workMode);
+      }
+
+      // Apply server-side category filtering
+      if (filters.types.size > 0) {
+        const categories = Array.from(filters.types);
+        query = query.in('category', categories);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching opportunities:', error);
         setOpportunities([]);
       } else if (data) {
-        // Fetch company data separately for each opportunity
-        const opportunitiesWithCompanies = await Promise.all(
-          data.map(async (opp) => {
-            const { data: companyData } = await supabase
-              .from('companies')
-              .select('company_name, brand_logo_url')
-              .eq('company_id', opp.company_id)
-              .single();
-
-            return {
-              ...opp,
-              companies: companyData || null,
-            };
-          })
-        );
-
-        setOpportunities(opportunitiesWithCompanies as FetchedOpportunity[]);
+        setOpportunities(data as FetchedOpportunity[]);
       }
     } catch (err) {
       console.error('Unexpected error:', err);
@@ -203,32 +210,14 @@ export const OpportunitiesPage: React.FC = () => {
     }
 
     setLoading(false);
-  }, [activeTab]);
+  }, [activeTab, debouncedSearch, filters.workMode, filters.types]);
 
   useEffect(() => {
     fetchOpportunities();
   }, [fetchOpportunities]);
   
-  const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    
-    return opportunities.filter(o => {
-        const searchText = [
-          o.title, 
-          o.companies?.company_name, 
-          o.domain
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        
-        if (q && !searchText.includes(q)) return false;
-        if (filters.types.size > 0 && !filters.types.has(o.category || '')) return false;
-        if (filters.workMode && o.work_mode !== filters.workMode) return false;
-        
-        return true;
-    });
-  }, [debouncedSearch, filters, opportunities]);
+  // Since we're now doing server-side filtering, we can use opportunities directly
+  const filtered = opportunities;
 
   const clearAllFilters = () => {
     setFilters({ workMode: '', types: new Set() });

@@ -85,6 +85,7 @@ export const ApplicationTrackerPage: React.FC = () => {
         }));
         
         setApplications(formatted);
+        return studentData.student_id;
       } catch (err) {
         // Fixed: Properly handle the error type
         if (err instanceof Error) {
@@ -95,12 +96,47 @@ export const ApplicationTrackerPage: React.FC = () => {
           setError('An unexpected error occurred');
         }
         console.error('Error fetching applications:', err);
+        return null;
       } finally {
         setLoading(false);
       }
     };
     
-    fetchApplications();
+    let channel: any = null;
+    
+    const setupRealtimeSubscription = async () => {
+      const studentId = await fetchApplications();
+      
+      if (!studentId) return;
+      
+      // Set up real-time subscription for application updates
+      channel = supabase
+        .channel('application-updates')
+        .on(
+          'postgres_changes',
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'applications',
+            filter: `student_id=eq.${studentId}`
+          },
+          (payload) => {
+            console.log('Application update received:', payload);
+            // Re-fetch applications when changes occur
+            fetchApplications();
+          }
+        )
+        .subscribe();
+    };
+    
+    setupRealtimeSubscription();
+    
+    // Cleanup subscription on unmount
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [user]);
     
   const applicationsByStatus = useMemo(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../stores/authStore";
@@ -30,6 +30,7 @@ interface ProfileFormData {
   github_url: string;
   portfolio_url: string;
   bio: string;
+  skills: string[];
 }
 
 interface Skill {
@@ -51,12 +52,13 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   navigateTo,
 }) => {
   const { user } = useAuthStore();
-  const [formData, setFormData] = useState<Partial<ProfileFormData>>({});
+  const [formData, setFormData] = useState<Partial<ProfileFormData>>({
+    skills: []
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [studentId, setStudentId] = useState<string | null>(null);
   const [allSkills, setAllSkills] = useState<Skill[]>([]);
-  const [studentSkills, setStudentSkills] = useState<string[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [newAchievement, setNewAchievement] = useState({
     title: "",
@@ -67,12 +69,10 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   });
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string>("");
-  const [profileStrength, setProfileStrength] = useState(0);
 
   const calculateProfileStrength = useCallback(
     (
       profile: Partial<ProfileFormData>,
-      skills: string[],
       achievementsList: Achievement[],
       currentResumeUrl: string
     ): number => {
@@ -90,13 +90,20 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         strength += weights.academic;
       if (profile.linkedin_url || profile.github_url || profile.portfolio_url)
         strength += weights.links;
-      if (skills.length >= 5) strength += weights.skills;
-      else strength += (skills.length / 5) * weights.skills;
+      const skillsCount = profile.skills?.length || 0;
+      if (skillsCount >= 5) strength += weights.skills;
+      else strength += (skillsCount / 5) * weights.skills;
       if (achievementsList.length > 0) strength += weights.achievements;
       if (currentResumeUrl) strength += weights.resume;
       return Math.round(Math.min(100, strength));
     },
     []
+  );
+
+  // Memoize profile strength calculation
+  const profileStrength = useMemo(
+    () => calculateProfileStrength(formData, achievements, resumeUrl),
+    [formData, achievements, resumeUrl, calculateProfileStrength]
   );
 
   const fetchProfile = useCallback(async () => {
@@ -110,9 +117,11 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         .single();
       if (error && error.code !== "PGRST116") throw error;
       if (data) {
-        setFormData(data);
+        setFormData({
+          ...data,
+          skills: data.skills || []
+        });
         setStudentId(data.student_id);
-        setStudentSkills(data.skills || []);
         setResumeUrl(data.resume_url || "");
         const { data: achData, error: achError } = await supabase
           .from("student_achievements")
@@ -120,14 +129,6 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
           .eq("student_id", data.student_id);
         if (achError) throw achError;
         setAchievements(achData || []);
-        setProfileStrength(
-          calculateProfileStrength(
-            data,
-            data.skills || [],
-            achData || [],
-            data.resume_url || ""
-          )
-        );
       }
       const { data: skillsData, error: skillsError } = await supabase
         .from("skills_master")
@@ -148,17 +149,6 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
-  useEffect(() => {
-    setProfileStrength(
-      calculateProfileStrength(formData, studentSkills, achievements, resumeUrl)
-    );
-  }, [
-    formData,
-    studentSkills,
-    achievements,
-    resumeUrl,
-    calculateProfileStrength,
-  ]);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -169,11 +159,13 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   };
 
   const handleSkillToggle = (skillName: string) => {
-    setStudentSkills((prev) =>
-      prev.includes(skillName)
-        ? prev.filter((s) => s !== skillName)
-        : [...prev, skillName]
-    );
+    setFormData((prev) => {
+      const currentSkills = prev.skills || [];
+      const newSkills = currentSkills.includes(skillName)
+        ? currentSkills.filter((s) => s !== skillName)
+        : [...currentSkills, skillName];
+      return { ...prev, skills: newSkills };
+    });
   };
 
   const handleAddAchievement = async () => {
@@ -250,7 +242,6 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
       let currentStudentId = studentId;
       const profilePayload = {
         ...formData,
-        skills: studentSkills,
         user_id: user.id,
         updated_at: new Date().toISOString(),
       };
@@ -484,7 +475,7 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
                   key={skill.skill_id}
                   onClick={() => handleSkillToggle(skill.skill_name)}
                   className={`px-3 py-1 rounded-full text-sm transition-all duration-200 border ${
-                    studentSkills.includes(skill.skill_name)
+                    (formData.skills || []).includes(skill.skill_name)
                       ? "bg-purple-600 border-purple-600 text-white font-semibold"
                       : "bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200"
                   }`}
