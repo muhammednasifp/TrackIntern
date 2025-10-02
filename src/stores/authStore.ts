@@ -132,15 +132,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 // Listen for auth state changes to keep the store in sync
 supabase.auth.onAuthStateChange((event, session) => {
-  const store = useAuthStore.getState();
+  const { user, fetchUserProfile } = useAuthStore.getState();
   if (session?.user) {
     // If the user in the store is different, or there was no user before, update the session
-    if (store.user?.id !== session.user.id) {
-        set({ user: session.user as User });
-        store.fetchUserProfile();
+    if (user?.id !== session.user.id) {
+        useAuthStore.setState({ user: session.user as User });
+        fetchUserProfile();
     }
-  } else if (!session?.user && store.user) {
+  } else if (!session?.user && user) {
     // If there's no session but there is a user in the store, sign them out
-    set({ user: null, profile: null, studentId: null });
+    useAuthStore.setState({ user: null, profile: null, studentId: null });
   }
 });

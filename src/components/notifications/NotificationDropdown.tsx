@@ -7,11 +7,9 @@ import { NotificationItem } from './NotificationItem';
 
 interface NotificationDropdownProps {
   theme?: 'light' | 'dark';
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
 }
 
-export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ theme = 'light', onMouseEnter, onMouseLeave }) => {
+export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ theme = 'light' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -67,14 +65,12 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ them
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className={`absolute right-0 mt-2 w-96 backdrop-blur-lg rounded-2xl shadow-2xl border z-50 max-h-96 overflow-hidden ${
+            className={`absolute right-0 mt-2 w-96 backdrop-blur-lg rounded-2xl shadow-2xl border z-[10000] max-h-96 overflow-hidden ${
               theme === 'dark' 
                 ? 'bg-slate-800/95 border-slate-600/50' 
                 : 'bg-white/95 border-gray-200/50'
             }`}
             data-dropdown="notifications"
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
           >
             <div className={`p-4 border-b ${theme === 'dark' ? 'border-slate-600/50' : 'border-gray-200/50'}`}>
               <div className="flex items-center justify-between">
