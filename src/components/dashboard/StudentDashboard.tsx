@@ -155,8 +155,32 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigateTo }
 
   const profileStrength = profile?.profile_strength || 0;
 
-  // Determine the name to display
-  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Student';
+  // Determine the name to display - prioritize full name, then create a proper username
+  const getDisplayName = () => {
+    // First, check if we have a full name from profile or user metadata
+    if (profile?.full_name?.trim()) {
+      return profile.full_name;
+    }
+    
+    if (user?.user_metadata?.full_name?.trim()) {
+      return user.user_metadata.full_name;
+    }
+    
+    // If no full name, create a proper username from email
+    if (user?.email) {
+      const emailUsername = user.email.split('@')[0];
+      // Convert to a more readable format (capitalize first letter, handle numbers/special chars)
+      return emailUsername
+        .replace(/[._-]/g, ' ') // Replace dots, underscores, hyphens with spaces
+        .replace(/\b\w/g, l => l.toUpperCase()) // Capitalize first letter of each word
+        .replace(/\d+/g, '') // Remove numbers
+        .trim() || 'User'; // Fallback if nothing remains
+    }
+    
+    return 'Student';
+  };
+
+  const displayName = getDisplayName();
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 p-4 sm:p-8">

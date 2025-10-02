@@ -5,7 +5,11 @@ import { useNotificationStore } from '../../stores/notificationStore';
 import { useNavigate } from 'react-router-dom';
 import { NotificationItem } from './NotificationItem';
 
-export const NotificationDropdown: React.FC = () => {
+interface NotificationDropdownProps {
+  theme?: 'light' | 'dark';
+}
+
+export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ theme = 'light' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -40,7 +44,11 @@ export const NotificationDropdown: React.FC = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-full hover:bg-gray-100"
+        className={`relative p-2 transition-colors rounded-full ${
+          theme === 'dark' 
+            ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+        }`}
       >
         <BellIcon className="w-6 h-6" />
         {unreadCount > 0 && (
@@ -57,11 +65,15 @@ export const NotificationDropdown: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="absolute right-0 mt-2 w-96 bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200/50 z-50 max-h-96 overflow-hidden"
+            className={`absolute right-0 mt-2 w-96 backdrop-blur-lg rounded-2xl shadow-2xl border z-50 max-h-96 overflow-hidden ${
+              theme === 'dark' 
+                ? 'bg-slate-800/95 border-slate-600/50' 
+                : 'bg-white/95 border-gray-200/50'
+            }`}
           >
-            <div className="p-4 border-b border-gray-200/50">
+            <div className={`p-4 border-b ${theme === 'dark' ? 'border-slate-600/50' : 'border-gray-200/50'}`}>
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Notifications</h3>
                 <div className="flex items-center space-x-2">
                   {unreadCount > 0 && (
                     <button

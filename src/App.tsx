@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Navbar } from './components/layout/Navbar';
 import { HeroSection } from './components/landing/HeroSection';
@@ -13,6 +13,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading, checkSession } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -30,6 +31,11 @@ function App() {
     navigate(path);
   };
 
+  // Determine navbar theme based on current route
+  const getNavbarTheme = () => {
+    return location.pathname === '/opportunities' ? 'dark' : 'light';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -44,7 +50,7 @@ function App() {
   return (
     <>
       <div className="min-h-screen bg-gray-50">
-        <Navbar navigateTo={navigateTo} />
+        <Navbar navigateTo={navigateTo} theme={getNavbarTheme()} />
         <main className="pt-16">
           <Routes>
             <Route
