@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserCircleIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
-import { NotificationDropdown } from '../notifications/NotificationDropdown';
 
 interface NavbarProps {
   navigateTo: (path: string) => void;
@@ -13,6 +12,30 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
   const [isExpanded, setIsExpanded] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { user, signOut } = useAuthStore();
+  
+  // Auto-expand navbar when user is logged in
+  useEffect(() => {
+    if (user) {
+      setIsExpanded(true);
+    }
+  }, [user]);
+
+  // Debug: Log user state changes
+  useEffect(() => {
+    console.log('Navbar: User state changed:', { 
+      user: !!user, 
+      userId: user?.id, 
+      userEmail: user?.email,
+      isExpanded, 
+      isProfileOpen 
+    });
+  }, [user, isExpanded, isProfileOpen]);
+
+  // Force profile icon to be visible when user exists
+  const showProfileIcon = !!user;
+  
+  // Debug: Force show profile icon for testing
+  console.log('Navbar render:', { user: !!user, showProfileIcon, isExpanded, isProfileOpen });
   
   const profileRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -58,6 +81,11 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
   };
 
   const handleMouseLeave = (event: React.MouseEvent) => {
+    // Don't collapse if user is logged in and profile dropdown is open
+    if (user && isProfileOpen) {
+      return;
+    }
+
     // Check if we're moving to a dropdown
     const relatedTarget = event.relatedTarget as HTMLElement;
     if (relatedTarget && (
@@ -96,10 +124,8 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
       : 'bg-white border-gray-200/80';
 
   return (
-    <motion.nav
+    <nav
       ref={navRef}
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className="fixed top-4 z-[9999] transition-all duration-300 ease-out"
@@ -109,23 +135,18 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
         minWidth: 'fit-content'
       }}
     >
-      <motion.div
-        animate={{
-          borderRadius: '24px',
-          width: isExpanded ? 'auto' : 'fit-content',
-        }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
+      <div
         className={`${
           theme === 'dark'
             ? 'bg-slate-900/90 border-slate-700/50'
             : 'bg-white/90 border-gray-200/50'
-        } backdrop-blur-lg border shadow-lg whitespace-nowrap relative`}
+        } backdrop-blur-lg border shadow-lg rounded-3xl relative`}
         style={{ 
-          minWidth: isExpanded ? '600px' : 'fit-content',
+          minWidth: 'fit-content',
           maxWidth: '90vw'
         }}
       >
-        <div className={`flex items-center px-4 py-3 ${isExpanded ? 'justify-between' : 'justify-center'}`}>
+        <div className="flex items-center justify-between px-4 py-3">
           {/* Logo/Title */}
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -140,154 +161,110 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
             </span>
           </motion.div>
 
-          {/* Links */}
-          <AnimatePresence>
-            {isExpanded && user && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.3, ease: 'easeOut' }}
-                className="flex items-center space-x-4 overflow-hidden"
+          {/* Navigation Links - Only show when expanded and user exists */}
+          {isExpanded && user && (
+            <div className="flex items-center space-x-4">
+              <motion.button
+                onClick={() => handleNavigate('/dashboard')}
+                className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
               >
-                <motion.button
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 }}
-                  onClick={() => handleNavigate('/dashboard')}
-                  className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
-                >
-                  Dashboard
-                </motion.button>
-                <motion.button
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.15 }}
-                  onClick={() => handleNavigate('/opportunities')}
-                  className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
-                >
-                  Opportunities
-                </motion.button>
-                <motion.button
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 }}
-                  onClick={() => handleNavigate('/applications')}
-                  className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
-                >
-                  Applications
-                </motion.button>
+                Dashboard
+              </motion.button>
+              <motion.button
+                onClick={() => handleNavigate('/opportunities')}
+                className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
+              >
+                Opportunities
+              </motion.button>
+              <motion.button
+                onClick={() => handleNavigate('/applications')}
+                className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
+              >
+                Applications
+              </motion.button>
+            </div>
+          )}
 
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.25 }}
-                  onMouseEnter={() => {
-                    if (collapseTimeoutRef.current) {
-                      clearTimeout(collapseTimeoutRef.current);
-                    }
-                    setIsExpanded(true);
-                  }}
-                >
-                  <NotificationDropdown 
-                    theme={theme} 
-                    onKeepExpanded={() => {
+          {/* Profile Icon - Always visible when user exists */}
+          {(showProfileIcon || true) && (
+            <div className="relative" ref={profileRef}>
+              <motion.button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('Profile icon clicked, current state:', { isProfileOpen, user: !!user });
+                  setIsProfileOpen(!isProfileOpen);
+                  setIsExpanded(true);
+                }} 
+                whileHover={{ scale: 1.1 }} 
+                whileTap={{ scale: 0.95 }}
+                className="p-2 relative cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                type="button"
+                aria-label="User profile menu"
+              >
+                <UserCircleIcon className={`h-7 w-7 ${iconStyles}`} />
+              </motion.button>
+              
+              {/* Profile Dropdown */}
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }} 
+                    animate={{ opacity: 1, y: 0, scale: 1 }} 
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className={`absolute right-0 mt-2 w-48 rounded-lg shadow-xl border z-[10001] ${dropdownStyles}`}
+                    data-dropdown="profile"
+                    onMouseEnter={() => {
                       if (collapseTimeoutRef.current) {
                         clearTimeout(collapseTimeoutRef.current);
                       }
                       setIsExpanded(true);
                     }}
-                  />
-                </motion.div>
-
-                <motion.div 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="relative" 
-                  ref={profileRef}
-                  onMouseEnter={() => {
-                    if (collapseTimeoutRef.current) {
-                      clearTimeout(collapseTimeoutRef.current);
-                    }
-                    setIsExpanded(true);
-                  }}
-                >
-                  <motion.button 
-                    onClick={() => {
-                      setIsProfileOpen(!isProfileOpen);
-                      // Keep navbar expanded when profile dropdown is open
-                      if (collapseTimeoutRef.current) {
-                        clearTimeout(collapseTimeoutRef.current);
-                      }
-                      setIsExpanded(true);
-                    }} 
-                    whileHover={{ scale: 1.1 }} 
-                    whileTap={{ scale: 0.95 }}
-                    className="p-1 relative"
+                    onMouseLeave={() => {
+                      collapseTimeoutRef.current = setTimeout(() => {
+                        setIsExpanded(false);
+                        setIsProfileOpen(false);
+                      }, 300);
+                    }}
                   >
-                    <UserCircleIcon className={`h-7 w-7 ${iconStyles}`} />
-                  </motion.button>
-                  <AnimatePresence>
-                    {isProfileOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }} 
-                        animate={{ opacity: 1, y: 0, scale: 1 }} 
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        transition={{ duration: 0.2 }}
-                        className={`absolute right-0 mt-2 w-48 rounded-lg shadow-xl border z-[10001] ${dropdownStyles}`}
-                        data-dropdown="profile"
-                        onMouseEnter={() => {
-                          if (collapseTimeoutRef.current) {
-                            clearTimeout(collapseTimeoutRef.current);
-                          }
-                          setIsExpanded(true);
-                        }}
-                        onMouseLeave={() => {
-                          collapseTimeoutRef.current = setTimeout(() => {
-                            setIsExpanded(false);
-                            setIsProfileOpen(false);
-                          }, 300);
-                        }}
+                    <div className="p-2">
+                      <button
+                        onClick={() => handleNavigate('/profile')}
+                        className={`block w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                          theme === 'dark'
+                            ? 'text-slate-200 hover:bg-slate-700'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
                       >
-                        <div className="p-2">
-                          <button
-                            onClick={() => handleNavigate('/profile')}
-                            className={`block w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                              theme === 'dark'
-                                ? 'text-slate-200 hover:bg-slate-700'
-                                : 'text-gray-700 hover:bg-gray-100'
-                            }`}
-                          >
-                            Profile
-                          </button>
-                          <div
-                            className={`border-t my-2 ${
-                              theme === 'dark'
-                                ? 'border-slate-600'
-                                : 'border-gray-100'
-                            }`}
-                          ></div>
-                          <button
-                            onClick={handleSignOut}
-                            className={`block w-full text-left px-3 py-2 text-red-600 rounded-lg transition-colors ${
-                              theme === 'dark'
-                                ? 'hover:bg-red-900/20'
-                                : 'hover:bg-red-50'
-                            }`}
-                          >
-                            Sign Out
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                        Profile
+                      </button>
+                      <div
+                        className={`border-t my-2 ${
+                          theme === 'dark'
+                            ? 'border-slate-600'
+                            : 'border-gray-100'
+                        }`}
+                      ></div>
+                      <button
+                        onClick={handleSignOut}
+                        className={`block w-full text-left px-3 py-2 text-red-600 rounded-lg transition-colors ${
+                          theme === 'dark'
+                            ? 'hover:bg-red-900/20'
+                            : 'hover:bg-red-50'
+                        }`}
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
         </div>
-      </motion.div>
-    </motion.nav>
+      </div>
+    </nav>
   );
 };

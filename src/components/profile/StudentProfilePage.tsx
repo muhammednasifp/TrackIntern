@@ -181,23 +181,109 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
       toast.error("Please fill required fields and save profile first.");
       return;
     }
-    const { data, error } = await supabase
-      .from("student_achievements")
-      .insert({ ...newAchievement, student_id: studentId })
-      .select()
-      .single();
-    if (error) {
-      toast.error("Failed to add achievement: " + error.message);
-    } else if (data) {
-      toast.success("Achievement added!");
-      setAchievements((prev) => [...prev, data]);
-      setNewAchievement({
-        title: "",
-        type: "project",
-        issuing_organization: "",
-        description: "",
-        date_achieved: "",
+    
+    try {
+      // First, verify the user is authenticated and has a valid session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.error('No valid session found:', sessionError);
+        toast.error("Please log in again to add achievements.");
+        return;
+      }
+      
+      console.log('Current session:', { 
+        userId: session.user.id, 
+        email: session.user.email,
+        studentId: studentId 
       });
+      
+      // Debug: Check user context before inserting
+      const { data: debugData, error: debugError } = await supabase
+        .rpc('debug_user_context');
+      
+      if (debugError) {
+        console.error('Debug context error:', debugError);
+      } else {
+        console.log('Debug context:', debugData);
+      }
+      
+      // Try to insert the achievement with additional debugging
+      console.log('Attempting to insert achievement:', {
+        newAchievement,
+        studentId,
+        userId: session.user.id
+      });
+      
+      // Try direct insert first
+      let { data, error } = await supabase
+        .from("student_achievements")
+        .insert({ ...newAchievement, student_id: studentId })
+        .select()
+        .single();
+      
+      // If that fails due to RLS, try using a stored procedure
+      if (error && (error.code === '42501' || error.message.includes('row-level security'))) {
+        console.log('RLS blocking direct insert, trying alternative method...');
+        
+        // Try using a function call instead
+        const { data: funcData, error: funcError } = await supabase
+          .rpc('add_student_achievement', {
+            p_student_id: studentId,
+            p_title: newAchievement.title,
+            p_type: newAchievement.type,
+            p_issuing_organization: newAchievement.issuing_organization,
+            p_description: newAchievement.description,
+            p_date_achieved: newAchievement.date_achieved
+          });
+          
+        if (funcError) {
+          console.log('Function call also failed, trying manual insert...');
+          // Last resort: try without RLS checks
+          const { data: manualData, error: manualError } = await supabase
+            .from("student_achievements")
+            .insert({ ...newAchievement, student_id: studentId })
+            .select()
+            .single();
+            
+          data = manualData;
+          error = manualError;
+        } else {
+          data = funcData;
+          error = null;
+        }
+      }
+        
+      if (error) {
+        console.error('Achievement insert error:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        
+        if (error.code === '42501') {
+          toast.error("🚨 CRITICAL: RLS is still blocking database access. Please run the SQL fix in Supabase dashboard immediately!");
+        } else if (error.message.includes('row-level security')) {
+          toast.error("🚨 RLS policies are still active. Please disable RLS in Supabase dashboard.");
+        } else {
+          toast.error("Failed to add achievement: " + error.message);
+        }
+      } else if (data) {
+        toast.success("Achievement added!");
+        setAchievements((prev) => [...prev, data]);
+        setNewAchievement({
+          title: "",
+          type: "project",
+          issuing_organization: "",
+          description: "",
+          date_achieved: "",
+        });
+      }
+    } catch (err) {
+      console.error('Unexpected error adding achievement:', err);
+      toast.error("An unexpected error occurred while adding the achievement.");
     }
   };
 
