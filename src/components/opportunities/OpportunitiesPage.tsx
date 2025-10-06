@@ -169,15 +169,12 @@ export const OpportunitiesPage: React.FC = () => {
         .in('status', ['active', 'open'])
         ;
 
-      if (serverType) {
-        // Show records matching the tab type OR where type is not set yet (null)
-        query = query.or(`type.eq.${serverType},type.is.null`);
-      }
+      // Fetch all active opportunities; filter by tab client-side to avoid server-side misses
 
       // Apply server-side search filtering
       if (debouncedSearch.trim()) {
-        // Search in title, company name, and domain
-        query = query.or(`title.ilike.%${debouncedSearch}%,domain.ilike.%${debouncedSearch}%,companies.company_name.ilike.%${debouncedSearch}%`);
+        // Search in title and company name
+        query = query.or(`title.ilike.%${debouncedSearch}%,companies.company_name.ilike.%${debouncedSearch}%`);
       }
 
       // Apply server-side work mode filtering
@@ -185,11 +182,7 @@ export const OpportunitiesPage: React.FC = () => {
         query = query.eq('work_mode', filters.workMode);
       }
 
-      // Apply server-side category filtering
-      if (filters.types.size > 0) {
-        const categories = Array.from(filters.types);
-        query = query.in('category', categories);
-      }
+      // No category filter on server (column not present in schema)
 
       const { data, error } = await query;
 
@@ -211,8 +204,12 @@ export const OpportunitiesPage: React.FC = () => {
     fetchOpportunities();
   }, [fetchOpportunities]);
   
-  // Since we're now doing server-side filtering, we can use opportunities directly
-  const filtered = opportunities;
+  // Client-side type filter to ensure visibility regardless of server quirks
+  const filtered = useMemo(() => {
+    const typeFilter = activeTab === 'internships' ? 'internship' : activeTab === 'placements' ? 'placement' : null;
+    if (!typeFilter) return opportunities;
+    return opportunities.filter(o => (o.type || 'internship') === typeFilter);
+  }, [opportunities, activeTab]);
 
   const clearAllFilters = () => {
     setFilters({ workMode: '', types: new Set() });

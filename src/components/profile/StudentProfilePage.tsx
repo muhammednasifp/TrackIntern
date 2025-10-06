@@ -319,7 +319,10 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     const { error } = await supabase.storage
       .from("resumes")
       .upload(filePath, file, { upsert: true });
-    if (error) throw error;
+    if (error) {
+      // Surface clearer storage+RLS errors
+      throw new Error(`Storage upload failed: ${error.message}`);
+    }
     const {
       data: { publicUrl },
     } = supabase.storage.from("resumes").getPublicUrl(filePath);
@@ -334,10 +337,26 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     const toastId = toast.loading("Saving profile...");
     
     try {
+      // Ensure we have a valid session (auth.uid() used by RLS)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        throw new Error("No active session. Please sign in again.");
+      }
+
       const cleanedFormData = {
         ...formData,
-        year_of_study: formData.year_of_study ? parseInt(formData.year_of_study.toString()) : null,
-        cgpa: formData.cgpa && formData.cgpa !== '' ? parseFloat(formData.cgpa.toString()) : null,
+        year_of_study: (() => {
+          const raw = formData.year_of_study != null ? parseInt(formData.year_of_study.toString()) : null;
+          if (raw == null || Number.isNaN(raw)) return null;
+          // DB CHECK enforces 1..4
+          return Math.min(4, Math.max(1, raw));
+        })(),
+        cgpa: (() => {
+          const raw = formData.cgpa != null && formData.cgpa !== '' ? parseFloat(formData.cgpa.toString()) : null;
+          if (raw == null || Number.isNaN(raw)) return null;
+          // DB CHECK enforces 0..10
+          return Math.min(10, Math.max(0, raw));
+        })(),
         skills: Array.isArray(formData.skills) ? formData.skills : [],
         college_name: formData.college_name?.trim() || null,
         course: formData.course?.trim() || null,
@@ -351,13 +370,13 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
       let finalResumeUrl = resumeUrl;
       let currentStudentId = studentId;
 
-      // If no student profile exists, it should have been created by the database trigger
-      // Let's try to fetch it first
+      // If no student profile exists, it should have been created by the database trigger.
+      // Re-check to avoid unintended INSERTs that might be blocked by RLS if session is stale.
       if (!currentStudentId) {
         const { data: existingStudent, error: fetchError } = await supabase
           .from("students")
           .select("student_id")
-          .eq("user_id", user.id)
+          .eq("user_id", session.user.id)
           .single();
         
         if (fetchError && fetchError.code !== "PGRST116") {
@@ -372,7 +391,7 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
           const { data: newStudent, error: insertError } = await supabase
             .from("students")
             .insert({ 
-              user_id: user.id, 
+              user_id: session.user.id, 
               full_name: cleanedFormData.full_name || user.user_metadata?.full_name || 'Student',
               profile_strength: 10
             })
@@ -387,8 +406,14 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
       }
 
       if (resumeFile && currentStudentId) {
-        finalResumeUrl = (await uploadResume(resumeFile, currentStudentId)) || resumeUrl;
-        setResumeUrl(finalResumeUrl);
+        try {
+          finalResumeUrl = (await uploadResume(resumeFile, currentStudentId)) || resumeUrl;
+          setResumeUrl(finalResumeUrl);
+        } catch (uploadErr: any) {
+          // Provide specific guidance for RLS/storage failures
+          const msg = uploadErr?.message || 'Upload failed';
+          throw new Error(`Resume upload error: ${msg}`);
+        }
       }
 
       const finalPayload = {
@@ -421,13 +446,15 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
       
     } catch (err: unknown) {
       console.error("Profile save error:", err);
-      if (err instanceof Error) {
-        toast.error("Error saving profile: " + err.message, { id: toastId });
-      } else {
-        toast.error("An unexpected error occurred while saving the profile.", {
-          id: toastId,
-        });
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      // Map common RLS/storage messages to clearer hints
+      let hint = '';
+      if (message.toLowerCase().includes('row-level security')) {
+        hint = ' (RLS blocked the write; ensure you are signed in and editing your own profile)';
+      } else if (message.toLowerCase().includes('storage')) {
+        hint = ' (Resume upload failed. Check you are logged in and retry.)';
       }
+      toast.error("Error saving profile: " + message + hint, { id: toastId });
     } finally {
       setSaving(false);
     }
