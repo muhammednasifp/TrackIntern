@@ -17,3 +17,4 @@ AND schemaname = 'public';
 SELECT 'RLS disabled successfully' as status;
 
 
+

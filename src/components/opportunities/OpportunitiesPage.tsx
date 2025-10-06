@@ -12,18 +12,14 @@ import OpportunityCard, {
 } from './OpportunityCard';
 import { useAuthStore } from '../../stores/authStore';
 
-type TabKey = 'internships' | 'placements';
+type TabKey = 'internships' | 'placements' | 'all';
 
 interface FetchedOpportunity {
   opportunity_id: string;
   title: string;
   type: 'internship' | 'placement' | null;
-  category?: string | null;
-  domain?: string | null;
   stipend_min?: number | null;
   stipend_max?: number | null;
-  ctc_min?: number | null;
-  ctc_max?: number | null;
   currency?: string | null;
   duration_months?: number | null;
   work_mode?: string | null;
@@ -32,9 +28,7 @@ interface FetchedOpportunity {
   created_at?: string | null;
   companies?: {
     company_name?: string | null;
-    brand_logo_url?: string | null;
     logo_url?: string | null;
-    image_url?: string | null;
   } | null;
 }
 
@@ -115,7 +109,7 @@ export const OpportunitiesPage: React.FC = () => {
     return params.get(key);
   };
 
-  const initialTab = (getUrlParam('tab') as TabKey) || 'internships';
+  const initialTab = ((getUrlParam('tab') as TabKey) || 'internships');
   const initialQuery = getUrlParam('q') || '';
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
@@ -149,7 +143,7 @@ export const OpportunitiesPage: React.FC = () => {
 
   const fetchOpportunities = useCallback(async () => {
     setLoading(true);
-    const serverType = activeTab === 'internships' ? 'internship' : 'placement';
+    const serverType = activeTab === 'internships' ? 'internship' : activeTab === 'placements' ? 'placement' : null;
 
     try {
       // Build query with server-side filtering
@@ -159,12 +153,8 @@ export const OpportunitiesPage: React.FC = () => {
           opportunity_id,
           title,
           type,
-          category,
-          domain,
           stipend_min,
           stipend_max,
-          ctc_min,
-          ctc_max,
           currency,
           duration_months,
           work_mode,
@@ -173,11 +163,16 @@ export const OpportunitiesPage: React.FC = () => {
           created_at,
           companies (
             company_name,
-            brand_logo_url
+            logo_url
           )
         `)
-        .eq('status', 'active')
-        .eq('type', serverType);
+        .in('status', ['active', 'open'])
+        ;
+
+      if (serverType) {
+        // Show records matching the tab type OR where type is not set yet (null)
+        query = query.or(`type.eq.${serverType},type.is.null`);
+      }
 
       // Apply server-side search filtering
       if (debouncedSearch.trim()) {

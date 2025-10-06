@@ -62,3 +62,4 @@ SELECT
     'RLS is completely disabled on all tables' as status,
     'Your app should work now!' as result;
 
+

@@ -94,3 +94,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION debug_user_context() TO authenticated;
 
 
+

@@ -78,3 +78,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION test_rls_access() TO authenticated;
 
 
+

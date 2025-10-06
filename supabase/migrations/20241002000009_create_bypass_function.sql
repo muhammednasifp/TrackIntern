@@ -91,3 +91,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION check_rls_issues() TO authenticated;
 
 
+

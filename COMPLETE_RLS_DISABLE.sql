@@ -61,3 +61,4 @@ ORDER BY tablename;
 SELECT '🎉 RLS COMPLETELY DISABLED - Your app should work now!' as result;
 
 
+

@@ -57,3 +57,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION test_database_access() TO authenticated;
 
 
+

@@ -11,11 +11,14 @@ import { StudentProfilePage } from './components/profile/StudentProfilePage';
 import { OpportunitiesPage } from './components/opportunities/OpportunitiesPage';
 import { ApplicationTrackerPage } from './components/applications/ApplicationTrackerPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { CompanyDashboard } from './components/company/CompanyDashboard';
+import { OpportunityForm } from './components/company/OpportunityForm';
+import { ApplicantsPage } from './components/company/ApplicantsPage';
 
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading, checkSession } = useAuthStore();
+  const { user, loading, checkSession, userType } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
 
@@ -54,14 +57,14 @@ function App() {
     <>
       <BackgroundWrapper>
         <div className="min-h-screen">
-          <Navbar navigateTo={navigateTo} theme={getNavbarTheme()} />
+          <Navbar navigateTo={navigateTo} theme={getNavbarTheme()} currentPath={location.pathname} />
           <main>
             <Routes>
               <Route
                 path="/"
                 element={
                   user ? (
-                    <Navigate to="/dashboard" replace />
+                    <Navigate to={userType === 'company' ? '/company' : '/dashboard'} replace />
                   ) : (
                     <HeroSection
                       onLoginClick={() => openAuth('signin')}
@@ -72,10 +75,17 @@ function App() {
               />
 
               <Route element={<ProtectedRoute />}>
-                <Route path="/dashboard" element={<StudentDashboard navigateTo={navigateTo} />} />
-                <Route path="/profile" element={<StudentProfilePage navigateTo={navigateTo} />} />
-                <Route path="/opportunities" element={<OpportunitiesPage />} />
-                <Route path="/applications" element={<ApplicationTrackerPage />} />
+                {/* Student routes */}
+                <Route path="/dashboard" element={userType === 'company' ? <Navigate to="/company" replace /> : <StudentDashboard navigateTo={navigateTo} />} />
+                <Route path="/profile" element={userType === 'company' ? <Navigate to="/company" replace /> : <StudentProfilePage navigateTo={navigateTo} />} />
+                <Route path="/opportunities" element={userType === 'company' ? <Navigate to="/company/opportunities" replace /> : <OpportunitiesPage />} />
+                <Route path="/applications" element={userType === 'company' ? <Navigate to="/company" replace /> : <ApplicationTrackerPage />} />
+
+                {/* Company routes */}
+                <Route path="/company" element={userType === 'student' ? <Navigate to="/dashboard" replace /> : <CompanyDashboard navigateTo={navigateTo} />} />
+                <Route path="/company/opportunities/new" element={userType === 'student' ? <Navigate to="/dashboard" replace /> : <OpportunityForm />} />
+                <Route path="/company/opportunities/:id/edit" element={userType === 'student' ? <Navigate to="/dashboard" replace /> : <OpportunityForm />} />
+                <Route path="/company/opportunities/:id/applicants" element={userType === 'student' ? <Navigate to="/dashboard" replace /> : <ApplicantsPage />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

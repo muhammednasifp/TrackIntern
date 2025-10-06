@@ -73,3 +73,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION can_manage_achievements(uuid) TO authenticated;
 
 
+

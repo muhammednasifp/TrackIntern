@@ -2,23 +2,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserCircleIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
+import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 
 interface NavbarProps {
   navigateTo: (path: string) => void;
   theme?: 'light' | 'dark';
+  currentPath?: string;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) => {
+export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light', currentPath = '/' }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const { user, signOut } = useAuthStore();
+  const { user, signOut, userType } = useAuthStore();
   
-  // Auto-expand navbar when user is logged in
-  useEffect(() => {
-    if (user) {
-      setIsExpanded(true);
-    }
-  }, [user]);
+  // Do not auto-expand; expand only on hover or when a dropdown is open
 
   // Debug: Log user state changes
   useEffect(() => {
@@ -31,8 +28,8 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
     });
   }, [user, isExpanded, isProfileOpen]);
 
-  // Force profile icon to be visible when user exists
-  const showProfileIcon = !!user;
+  // Show profile icon only when authenticated and not on landing page
+  const showProfileIcon = !!user && currentPath !== '/';
   
   // Debug: Force show profile icon for testing
   console.log('Navbar render:', { user: !!user, showProfileIcon, isExpanded, isProfileOpen });
@@ -164,30 +161,60 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
           {/* Navigation Links - Only show when expanded and user exists */}
           {isExpanded && user && (
             <div className="flex items-center space-x-4">
-              <motion.button
-                onClick={() => handleNavigate('/dashboard')}
-                className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
-              >
-                Dashboard
-              </motion.button>
-              <motion.button
-                onClick={() => handleNavigate('/opportunities')}
-                className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
-              >
-                Opportunities
-              </motion.button>
-              <motion.button
-                onClick={() => handleNavigate('/applications')}
-                className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
-              >
-                Applications
-              </motion.button>
+              {userType !== 'company' && (
+                <>
+                  <motion.button
+                    onClick={() => handleNavigate('/dashboard')}
+                    className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
+                  >
+                    Dashboard
+                  </motion.button>
+                  <motion.button
+                    onClick={() => handleNavigate('/opportunities')}
+                    className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
+                  >
+                    Opportunities
+                  </motion.button>
+                  <motion.button
+                    onClick={() => handleNavigate('/applications')}
+                    className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
+                  >
+                    Applications
+                  </motion.button>
+                </>
+              )}
+              {userType === 'company' && (
+                <>
+                  <motion.button
+                    onClick={() => handleNavigate('/company')}
+                    className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
+                  >
+                    Company Dashboard
+                  </motion.button>
+                  <motion.button
+                    onClick={() => handleNavigate('/company/opportunities/new')}
+                    className={`${linkStyles} font-medium transition-colors whitespace-nowrap hover:scale-105`}
+                  >
+                    Post Opportunity
+                  </motion.button>
+                </>
+              )}
             </div>
           )}
 
-          {/* Profile Icon - Always visible when user exists */}
-          {(showProfileIcon || true) && (
+          {/* Notifications + Profile - only when authenticated and not on landing */}
+          {showProfileIcon && (
             <div className="relative" ref={profileRef}>
+              <div className="flex items-center gap-2">
+                <NotificationDropdown
+                  theme={theme}
+                  onKeepExpanded={() => {
+                    if (collapseTimeoutRef.current) {
+                      clearTimeout(collapseTimeoutRef.current);
+                    }
+                    setIsExpanded(true);
+                  }}
+                />
               <motion.button 
                 onClick={(e) => {
                   e.preventDefault();
@@ -204,6 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navigateTo, theme = 'light' }) =
               >
                 <UserCircleIcon className={`h-7 w-7 ${iconStyles}`} />
               </motion.button>
+              </div>
               
               {/* Profile Dropdown */}
               <AnimatePresence>

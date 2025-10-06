@@ -43,3 +43,4 @@ ORDER BY tablename;
 SELECT 'RLS has been completely disabled. You can now add achievements without permission errors.' as result;
 
 
+

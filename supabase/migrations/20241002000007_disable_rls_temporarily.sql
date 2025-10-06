@@ -18,3 +18,4 @@ COMMENT ON TABLE students IS 'RLS temporarily disabled for testing - re-enable w
 COMMENT ON TABLE users IS 'RLS temporarily disabled for testing - re-enable with proper policies later';
 
 
+
